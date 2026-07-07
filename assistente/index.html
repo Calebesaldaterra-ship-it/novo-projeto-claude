@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lux Vision — Assistente de voz</title>
+<style>
+  :root {
+    --preto: #0a0a0a;
+    --carvao: #141414;
+    --dourado: #c9a24b;
+    --dourado-claro: #e6c877;
+    --texto: #f4f1ea;
+    --suave: #8a8578;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(120% 120% at 50% 0%, #1a1712 0%, var(--preto) 55%);
+    color: var(--texto);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  header {
+    text-align: center;
+    padding: 40px 20px 10px;
+  }
+  header .marca {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 30px;
+    letter-spacing: 2px;
+    color: var(--dourado);
+  }
+  header .sub {
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--suave);
+    margin-top: 6px;
+  }
+  main {
+    width: 100%;
+    max-width: 620px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 20px 20px;
+  }
+  #conversa {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 260px;
+  }
+  .balao {
+    max-width: 85%;
+    padding: 12px 16px;
+    border-radius: 16px;
+    line-height: 1.5;
+    font-size: 16px;
+    white-space: pre-wrap;
+  }
+  .eu {
+    align-self: flex-end;
+    background: #23201a;
+    border: 1px solid #332e22;
+    border-bottom-right-radius: 4px;
+  }
+  .ela {
+    align-self: flex-start;
+    background: linear-gradient(180deg, #151312, #100f0d);
+    border: 1px solid var(--dourado);
+    border-bottom-left-radius: 4px;
+  }
+  .ela .quem { color: var(--dourado); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 5px; }
+  .vazio { color: var(--suave); text-align: center; margin: auto; font-size: 15px; line-height: 1.6; }
+  .controles {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding-top: 10px;
+  }
+  #mic {
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    border: 2px solid var(--dourado);
+    background: radial-gradient(circle at 50% 35%, #2a2418, #100f0d);
+    color: var(--dourado-claro);
+    font-size: 34px;
+    cursor: pointer;
+    transition: transform .12s, box-shadow .2s;
+  }
+  #mic:hover { transform: translateY(-2px); }
+  #mic:active { transform: scale(.96); }
+  #mic.ouvindo {
+    animation: pulso 1.4s ease-out infinite;
+    background: radial-gradient(circle at 50% 35%, #5a4a1e, #1a1610);
+  }
+  #mic.pensando { opacity: .5; cursor: default; }
+  @keyframes pulso {
+    0% { box-shadow: 0 0 0 0 rgba(201,162,75,.5); }
+    100% { box-shadow: 0 0 0 26px rgba(201,162,75,0); }
+  }
+  #estado { color: var(--suave); font-size: 14px; min-height: 20px; letter-spacing: .5px; }
+  .linha-texto { display: flex; gap: 8px; width: 100%; max-width: 520px; }
+  #entrada {
+    flex: 1;
+    background: #100f0d;
+    border: 1px solid #2c2820;
+    color: var(--texto);
+    padding: 11px 14px;
+    border-radius: 10px;
+    font-size: 15px;
+  }
+  #entrada:focus { outline: none; border-color: var(--dourado); }
+  #enviar {
+    background: var(--dourado);
+    color: #100f0d;
+    border: none;
+    padding: 0 18px;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .opcoes { display: flex; align-items: center; gap: 8px; color: var(--suave); font-size: 13px; }
+  .opcoes input { accent-color: var(--dourado); }
+  footer { color: #4a463c; font-size: 12px; padding: 14px; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="marca">LUX VISION</div>
+    <div class="sub">Assistente de voz</div>
+  </header>
+
+  <main>
+    <div id="conversa">
+      <div class="vazio" id="vazio">
+        Toque no microfone e fale.<br>Ou digite ali embaixo, se preferir.
+      </div>
+    </div>
+
+    <div class="controles">
+      <button id="mic" title="Falar">🎙️</button>
+      <div id="estado">Pronto.</div>
+
+      <label class="opcoes">
+        <input type="checkbox" id="continuo" />
+        Modo conversa (escuta de novo sozinho)
+      </label>
+
+      <div class="linha-texto">
+        <input id="entrada" placeholder="…ou escreva aqui" autocomplete="off" />
+        <button id="enviar">Enviar</button>
+      </div>
+    </div>
+  </main>
+
+  <footer>Lux Vision · MazyOS</footer>
+
+<script>
+  const conversa = document.getElementById('conversa');
+  const vazio = document.getElementById('vazio');
+  const btnMic = document.getElementById('mic');
+  const estado = document.getElementById('estado');
+  const entrada = document.getElementById('entrada');
+  const btnEnviar = document.getElementById('enviar');
+  const chkContinuo = document.getElementById('continuo');
+
+  const historico = []; // [{role:'user'|'assistant', content:'...'}]
+  let ocupado = false;
+
+  // ---------- Reconhecimento de voz (fala -> texto) ----------
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null;
+  let ouvindo = false;
+
+  if (SR) {
+    rec = new SR();
+    rec.lang = 'pt-BR';
+    rec.interimResults = true;
+    rec.continuous = false;
+
+    let parcial = '';
+    rec.onstart = () => { ouvindo = true; parcial = ''; btnMic.classList.add('ouvindo'); estado.textContent = 'Ouvindo…'; };
+    rec.onresult = (e) => {
+      parcial = '';
+      let final = '';
+      for (const r of e.results) {
+        if (r.isFinal) final += r[0].transcript;
+        else parcial += r[0].transcript;
+      }
+      estado.textContent = (final || parcial) ? '“' + (final || parcial) + '”' : 'Ouvindo…';
+      if (final.trim()) enviar(final.trim());
+    };
+    rec.onerror = (e) => {
+      ouvindo = false;
+      btnMic.classList.remove('ouvindo');
+      estado.textContent = e.error === 'no-speech' ? 'Não ouvi nada. Toque e fale de novo.' : 'Erro no microfone: ' + e.error;
+    };
+    rec.onend = () => { ouvindo = false; btnMic.classList.remove('ouvindo'); if (estado.textContent === 'Ouvindo…') estado.textContent = 'Pronto.'; };
+  } else {
+    estado.textContent = 'Seu navegador não reconhece voz. Use o Chrome ou Edge — ou digite abaixo.';
+    btnMic.disabled = true;
+    btnMic.style.opacity = .4;
+  }
+
+  function alternarMic() {
+    if (ocupado || !rec) return;
+    if (ouvindo) { rec.stop(); return; }
+    speechSynthesis.cancel();
+    try { rec.start(); } catch { /* já iniciando */ }
+  }
+  btnMic.addEventListener('click', alternarMic);
+
+  // ---------- Voz (texto -> fala) ----------
+  let vozPt = null;
+  function escolherVoz() {
+    const vs = speechSynthesis.getVoices();
+    vozPt = vs.find(v => /pt-BR/i.test(v.lang)) || vs.find(v => /^pt/i.test(v.lang)) || null;
+  }
+  escolherVoz();
+  speechSynthesis.onvoiceschanged = escolherVoz;
+
+  function falar(texto, aoTerminar) {
+    if (!('speechSynthesis' in window)) { aoTerminar && aoTerminar(); return; }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(texto);
+    u.lang = 'pt-BR';
+    if (vozPt) u.voice = vozPt;
+    u.rate = 1.03;
+    u.onend = () => aoTerminar && aoTerminar();
+    u.onerror = () => aoTerminar && aoTerminar();
+    speechSynthesis.speak(u);
+  }
+
+  // ---------- Interface ----------
+  function addBalao(texto, quem) {
+    if (vazio) vazio.remove();
+    const div = document.createElement('div');
+    div.className = 'balao ' + (quem === 'user' ? 'eu' : 'ela');
+    if (quem === 'assistant') {
+      const q = document.createElement('div');
+      q.className = 'quem';
+      q.textContent = 'Lux Vision';
+      div.appendChild(q);
+    }
+    div.appendChild(document.createTextNode(texto));
+    conversa.appendChild(div);
+    conversa.scrollTop = conversa.scrollHeight;
+  }
+
+  async function enviar(texto) {
+    if (ocupado || !texto) return;
+    ocupado = true;
+    btnMic.classList.add('pensando');
+    estado.textContent = 'Pensando…';
+    addBalao(texto, 'user');
+    historico.push({ role: 'user', content: texto });
+
+    try {
+      const r = await fetch('/conversar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ historico }),
+      });
+      const dados = await r.json();
+      if (dados.erro) throw new Error(dados.erro);
+
+      const resposta = dados.resposta || 'Desculpa, não consegui responder agora.';
+      historico.push({ role: 'assistant', content: resposta });
+      addBalao(resposta, 'assistant');
+      estado.textContent = 'Falando…';
+
+      falar(resposta, () => {
+        estado.textContent = 'Pronto.';
+        if (chkContinuo.checked && rec) setTimeout(alternarMic, 300);
+      });
+    } catch (e) {
+      addBalao('⚠ ' + e.message, 'assistant');
+      estado.textContent = 'Erro. Veja a mensagem acima.';
+    } finally {
+      ocupado = false;
+      btnMic.classList.remove('pensando');
+    }
+  }
+
+  btnEnviar.addEventListener('click', () => { const t = entrada.value.trim(); if (t) { entrada.value = ''; enviar(t); } });
+  entrada.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnEnviar.click(); });
+</script>
+</body>
+</html>

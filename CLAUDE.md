@@ -9,6 +9,18 @@ final dessa página com as regras específicas do seu negócio.
 
 ---
 
+## Lux Vision — Regras específicas do negócio
+
+**Perfil:** Empresa / agência digital solo
+**Fundador:** Solo
+**Serviços:** Sites, landing pages, tráfego pago, logo, marca, automação
+**Instagram:** @luxvisionhc
+**Fase atual:** Lançamento — construindo audiência e primeiros clientes
+
+Ao escrever qualquer conteúdo em nome da Lux Vision, manter sempre o tom premium e direto. A identidade visual é preto + dourado + serifa — todo conteúdo visual deve seguir o `identidade/design-guide.md`.
+
+---
+
 ## Contexto do negócio
 
 No início de toda conversa, ler os seguintes arquivos (quando existirem

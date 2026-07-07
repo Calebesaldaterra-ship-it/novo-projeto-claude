@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body { background: #111; display: flex; flex-direction: column; gap: 20px; padding: 20px; }
+
+  .slide {
+    width: 1080px;
+    height: 1350px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 70px;
+  }
+
+  /* ── TOPO: logo + contador ── */
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .logo-img { height: 48px; width: auto; object-fit: contain; }
+  .counter {
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    color: rgba(201,168,76,0.55);
+    text-transform: uppercase;
+  }
+
+  /* ── CORPO ── */
+  .body { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-top: 60px; }
+
+  /* ── KICKER ── */
+  .kicker {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.30em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .kicker-gold { color: #C9A84C; }
+  .kicker-dark { color: #0D0D0D; }
+
+  /* ── RÉGUA ── */
+  .rule {
+    width: 70px;
+    height: 3px;
+    margin-bottom: 28px;
+    border-radius: 2px;
+  }
+  .rule-gold { background: #C9A84C; }
+  .rule-dark { background: #0D0D0D; }
+
+  /* ── TÍTULOS ── */
+  .h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 92px;
+    font-weight: 900;
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+  }
+  .h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 66px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    margin-bottom: 28px;
+  }
+
+  /* ── CORPO DE TEXTO ── */
+  .p {
+    font-family: 'Inter', sans-serif;
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 1.55;
+  }
+  .p-light { color: rgba(255,255,255,0.72); }
+  .p-dark  { color: rgba(13,13,13,0.75); }
+
+  /* ── HANDLE ── */
+  .handle {
+    font-family: 'Inter', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.10em;
+    margin-top: 16px;
+  }
+  .handle-gold { color: rgba(201,168,76,0.65); }
+  .handle-dark { color: rgba(13,13,13,0.50); }
+
+  /* ── RODAPÉ ── */
+  .footer {
+    flex-shrink: 0;
+    border-top: 1px solid rgba(255,255,255,0.10);
+    padding-top: 24px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.30);
+  }
+  .footer-dark {
+    border-top: 1px solid rgba(13,13,13,0.15);
+    color: rgba(13,13,13,0.40);
+  }
+
+  /* ── NÚMERO GRANDE ── */
+  .big-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 280px;
+    font-weight: 900;
+    line-height: 0.85;
+    letter-spacing: -0.04em;
+    color: rgba(201,168,76,0.12);
+    position: absolute;
+    right: 50px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* ── FUNDOS ── */
+  .bg-black  { background: #0D0D0D; }
+  .bg-dark   { background: #1A1A1A; }
+  .bg-gold   { background: #C9A84C; }
+
+  /* ── TEXTO CORES ── */
+  .text-white { color: #FAFAF7; }
+  .text-gold  { color: #C9A84C; }
+  .text-black { color: #0D0D0D; }
+
+  /* ── SLIDE 1: CAPA ── */
+  #s1 { background: #0D0D0D; }
+  #s1 .tagline-sup {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: #C9A84C;
+    margin-bottom: 36px;
+  }
+  #s1 .h1 { color: #FAFAF7; margin-bottom: 24px; }
+  #s1 .divider {
+    width: 80px; height: 3px;
+    background: #C9A84C;
+    border-radius: 2px;
+    margin-bottom: 28px;
+  }
+  #s1 .subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 21px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.55);
+    line-height: 1.5;
+    max-width: 680px;
+  }
+
+  /* ── SLIDE 7: CTA ── */
+  #s7 { background: #0D0D0D; align-items: center; justify-content: center; }
+  #s7 .cta-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0;
+  }
+  #s7 .cta-logo { height: 160px; width: auto; object-fit: contain; margin-bottom: 48px; }
+  #s7 .cta-headline {
+    font-family: 'Playfair Display', serif;
+    font-size: 58px;
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.025em;
+    color: #FAFAF7;
+    max-width: 780px;
+    margin-bottom: 36px;
+  }
+  #s7 .cta-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #0D0D0D;
+    background: #C9A84C;
+    padding: 20px 52px;
+    border-radius: 6px;
+    margin-bottom: 32px;
+  }
+  #s7 .cta-handle {
+    font-family: 'Inter', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: rgba(201,168,76,0.55);
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 1 — CAPA
+═══════════════════════════════════════════ -->
+<div class="slide" id="s1">
+  <div class="top-bar">
+    <img class="logo-img" src="../../../identidade/logo.jpeg" alt="Lux Vision">
+    <span class="counter">1 / 7</span>
+  </div>
+
+  <div class="body">
+    <div class="tagline-sup">Lux Vision</div>
+    <h1 class="h1">Páginas que conectam.<br>Resultados que transformam.</h1>
+    <div class="divider"></div>
+    <p class="subtitle">Conheça quem vai cuidar da presença digital do seu negócio.</p>
+    <span class="handle handle-gold" style="margin-top:36px;">@luxvisionhc</span>
+  </div>
+
+  <div class="footer">luxvision.co</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     SLIDE 2 — QUEM SOMOS
+═══════════════════════════════════════════ -->
+<div class="slide bg-dark" id="s2">
+  <div class="top-bar">
+    <img class="logo-img" src="../../../identidade/logo.jpeg" alt="Lux Vision">
+    <span class="counter">2 / 7</span>
+  </div>
+
+  <div class="body">
+    <span class="kicker kicker-gold">Quem somos</span>
+    <div class="rule rule-gold"></div>
+    <h2 class="h2 text-white">A Lux Vision nasceu pra resolver o que trava o seu negócio online.</h2>
+    <p class="p p-light">Marketing, site, marca e automação — tudo pensado pra fazer o cliente chegar até você.</p>
+  </div>
+
+  <div class="footer">@luxvisionhc</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     SLIDE 3 — SITES (fundo gold)
+═══════════════════════════════════════════ -->
+<div class="slide bg-gold" id="s3">
+  <div class="top-bar">
+    <img class="logo-img" src="../../../identidade/logo.jpeg" alt="Lux Vision">
+    <span class="counter" style="color:rgba(13,13,13,0.45);">3 / 7</span>
+  </div>
+
+  <div class="body" style="position:relative;">
+    <span class="big-number" style="color:rgba(13,13,13,0.08);">01</span>
+    <span class="kicker kicker-dark">O que fazemos</span>
+    <div class="rule rule-dark"></div>
+    <h2 class="h2 text-black">Sites e páginas que convertem.</h2>
+    <p class="p p-dark">Não é só visual bonito. É estrutura pensada pra transformar visitante em cliente.</p>
+  </div>
+
+  <div class="footer footer-dark">@luxvisionhc</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     SLIDE 4 — TRÁFEGO PAGO
+═══════════════════════════════════════════ -->
+<div class="slide bg-black" id="s4">
+  <div class="top-bar">
+    <img class="logo-img" src="../../../identidade/logo.jpeg" alt="Lux Vision">
+    <span class="counter">4 / 7</span>
+  </div>
+
+  <div class="body" style="position:relative;">
+    <span class="big-number">02</span>
+    <span class="kicker kicker-gold">Tráfego pago</span>
+    <div class="rule rule-gold"></div>
+    <h2 class="h2 text-white">Seu anúncio na frente de quem vai comprar.</h2>
+    <p class="p p-light">Criamos e gerenciamos campanhas pra trazer o cliente certo, no momento certo.</p>
+  </div>
+
+  <div class="footer">@luxvisionhc</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     SLIDE 5 — IDENTIDADE (fundo gold)
+═══════════════════════════════════════════ -->
+<div class="slide bg-gold" id="s5">
+  <div class="top-bar">
+    <img class="logo-img" src="../../../identidade/logo.jpeg" alt="Lux Vision">
+    <span class="counter" style="color:rgba(13,13,13,0.45);">5 / 7</span>
+  </div>
+
+  <div class="body" style="position:relative;">
+    <span class="big-number" style="color:rgba(13,13,13,0.08);">03</span>
+    <span class="kicker kicker-dark">Identidade</span>
+    <div class="rule rule-dark"></div>
+    <h2 class="h2 text-black">Logo e marca que posicionam antes de falar.</h2>
+    <p class="p p-dark">A primeira impressão já é o pitch. A sua marca precisa falar por você.</p>
+  </div>
+
+  <div class="footer footer-dark">@luxvisionhc</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     SLIDE 6 — AUTOMAÇÃO
+═══════════════════════════════════════════ -->
+<div class="slide bg-dark" id="s6">
+  <div class="top-bar">
+    <img class="logo-img" src="../../../identidade/logo.jpeg" alt="Lux Vision">
+    <span class="counter">6 / 7</span>
+  </div>
+
+  <div class="body" style="position:relative;">
+    <span class="big-number">04</span>
+    <span class="kicker kicker-gold">Automação</span>
+    <div class="rule rule-gold"></div>
+    <h2 class="h2 text-white">Processos que rodam enquanto você descansa.</h2>
+    <p class="p p-light">Do atendimento à entrega — automatizamos o que toma o seu tempo.</p>
+  </div>
+
+  <div class="footer">@luxvisionhc</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     SLIDE 7 — CTA FINAL
+═══════════════════════════════════════════ -->
+<div class="slide" id="s7">
+  <div class="cta-body">
+    <img class="cta-logo" src="../../../identidade/logo.jpeg" alt="Lux Vision">
+    <h2 class="cta-headline">Pronto pra ter uma presença que vende?</h2>
+    <div class="cta-btn">Fale com a gente</div>
+    <span class="cta-handle">@luxvisionhc</span>
+  </div>
+</div>
+
+</body>
+</html>

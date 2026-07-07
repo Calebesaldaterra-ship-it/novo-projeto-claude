@@ -1,0 +1,12 @@
+{
+  "name": "mazyos",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "assistente": "node assistente/server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0"
+  }
+}

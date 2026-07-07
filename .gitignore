@@ -17,6 +17,9 @@ Thumbs.db
 # Dependências
 node_modules/
 
+# Credenciais — nunca commitar
+.env
+
 # Arquivos temporários
 *.log
 *.tmp
