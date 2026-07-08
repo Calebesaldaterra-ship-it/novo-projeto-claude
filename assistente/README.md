@@ -1,9 +1,23 @@
-# Assistente de voz — "Jarvis" da Lux Vision
+# Aslam 🦁 — Assistente de voz da Lux Vision
 
-Um assistente que **escuta sua voz**, entende com o Claude (usando toda a memória do
-MazyOS sobre o negócio) e **responde falando**. Roda local, no seu navegador.
+Um assistente que **escuta sua voz**, entende usando toda a memória do MazyOS sobre o
+negócio e **responde falando**. Roda local, no seu navegador.
 
-## Como rodar (3 passos)
+## Dois jeitos de dar "cérebro" ao Aslam
+
+A voz (ouvir + falar) é sempre grátis e local. O que muda é quem "pensa":
+
+- **Claude (Anthropic)** — melhor qualidade, mas precisa de créditos (pago). Veja abaixo.
+- **Ollama (IA local)** — grátis e offline, roda no seu PC. Qualidade menor, mas não custa nada.
+
+O Aslam escolhe sozinho: se houver `ANTHROPIC_API_KEY` no `.env`, usa o Claude; senão, usa o Ollama.
+
+### Usar o Ollama (grátis)
+1. Instale o Ollama: https://ollama.com/download (ou `winget install Ollama.Ollama`).
+2. Baixe um modelo: no terminal, `ollama pull llama3.2`.
+3. Deixe o `ANTHROPIC_API_KEY` vazio no `.env` e rode `npm run assistente`.
+
+## Como rodar com o Claude (3 passos)
 
 1. **Pegar uma chave da Anthropic** (uma vez só)
    - Entre em https://console.anthropic.com → **API Keys** → cria uma chave.

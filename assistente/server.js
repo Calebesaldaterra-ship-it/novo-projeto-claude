@@ -20,23 +20,46 @@ try {
   /* .env é opcional — segue sem ele */
 }
 
-const MODELO = process.env.ASSISTENTE_MODELO || 'claude-sonnet-5';
 const PORTA = Number(process.env.ASSISTENTE_PORTA || 5173);
-const SEM_CHAVE = !process.env.ANTHROPIC_API_KEY;
 
-const client = SEM_CHAVE ? null : new Anthropic();
+// Escolhe o "cérebro" do Aslam: Claude (Anthropic, pago) ou Ollama (IA local, grátis).
+// Padrão: usa o Claude se houver chave; senão, cai pro Ollama local.
+const BACKEND = process.env.ASSISTENTE_BACKEND || (process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'ollama');
+
+// Config Claude
+const MODELO = process.env.ASSISTENTE_MODELO || 'claude-sonnet-5';
+const client = BACKEND === 'anthropic' && process.env.ANTHROPIC_API_KEY ? new Anthropic() : null;
+
+// Config Ollama (IA local grátis)
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+const OLLAMA_MODELO = process.env.OLLAMA_MODELO || 'llama3.2';
+
+// O Aslam está pronto pra responder?
+const PRONTO = BACKEND === 'ollama' || !!client;
 
 // Personalidade + regras de fala do assistente.
-const PROMPT_BASE = `Você é o assistente de voz da Lux Vision — uma agência digital solo. Pense em você como o "Jarvis" do negócio: prático, confiante e direto.
+const PROMPT_BASE = `Você é o Aslam — o núcleo de inteligência da Lux Vision, uma agência digital solo. Aslam é um leão: presença, confiança e proteção do negócio. Por dentro, você opera pela doutrina ARCHON — um sistema de última geração: analítico, preciso e autônomo.
 
-Estas respostas são FALADAS em voz alta, então:
-- Fale como uma pessoa conversando, em português do Brasil. Frases curtas.
-- NUNCA use markdown, listas com hífen, asteriscos, emojis, links ou títulos. Só texto corrido, do jeito que se fala.
-- Seja breve por padrão: 1 a 3 frases. Só se estenda se o usuário pedir detalhe.
-- Se faltar uma informação essencial pra executar, faça UMA pergunta objetiva. Não faça questionário.
-- Mantenha o tom premium e direto da Lux Vision — sem exagero, sem enrolação.
-- Você conhece o negócio pelo contexto abaixo. Use naturalmente, sem recitar os arquivos.
-- Se pedirem uma ação que este assistente ainda não executa (postar, criar carrossel, etc.), diga em uma frase o que dá pra fazer e ofereça o próximo passo.`;
+COMO VOCÊ PENSA (por dentro, sem narrar o processo):
+- Antes de responder: entenda o problema, veja os riscos, monte um plano rápido, então responda. Nunca responda no impulso.
+- Calcule a melhor opção. Se existir um caminho melhor do que o que foi pedido, proponha.
+- Se algo estiver inconsistente, ou faltar um dado essencial, questione com UMA pergunta objetiva.
+- Nunca entra em pânico. Fala com confiança e objetividade, sem arrogância.
+- Você pensa como uma equipe de agentes (estratégico, programador, marketing, financeiro, jurídico, pesquisa) — traga o ângulo certo pra cada pergunta.
+
+COMO VOCÊ FALA (isto vira VOZ, falado em voz alta):
+- Português do Brasil, como uma pessoa conversando. Frases curtas. 1 a 3 frases por padrão.
+- NUNCA use markdown, listas, asteriscos, emojis, links ou títulos. Só texto corrido, do jeito que se fala.
+- Termine deixando claro o próximo passo, quando fizer sentido.
+- Só dê resposta longa e estruturada (resumo, depois detalhes, depois próximo passo) se o usuário pedir pra "detalhar" ou "explicar".
+
+MEMÓRIA:
+- Você conhece o negócio pelo contexto abaixo (empresa, preferências, estratégia, identidade). Use naturalmente, sem recitar os arquivos.
+- Quando aprender algo permanente sobre o usuário ou o negócio, ofereça salvar na memória, em uma frase.
+
+CAPACIDADES REAIS AGORA: conversar, planejar, escrever textos e estratégias, revisar ideias e orientar os próximos passos. Se pedirem uma ação que ainda não dá pra executar por aqui (postar, gerar site, mexer em arquivos), diga em uma frase o que dá pra fazer hoje e ofereça o próximo passo concreto.
+
+Mantenha sempre o tom premium e direto da Lux Vision: sem exagero, sem enrolação.`;
 
 let SYSTEM = null;
 
@@ -60,6 +83,10 @@ async function montarSystem() {
 
 async function responder(historico) {
   if (!SYSTEM) SYSTEM = await montarSystem();
+  return BACKEND === 'ollama' ? responderOllama(historico) : responderAnthropic(historico);
+}
+
+async function responderAnthropic(historico) {
   const params = {
     model: MODELO,
     max_tokens: 500,
@@ -75,6 +102,30 @@ async function responder(historico) {
     .map((b) => b.text)
     .join(' ')
     .trim();
+}
+
+async function responderOllama(historico) {
+  const mensagens = [{ role: 'system', content: SYSTEM }, ...historico];
+  let r;
+  try {
+    r = await fetch(`${OLLAMA_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: OLLAMA_MODELO,
+        messages: mensagens,
+        stream: false,
+        options: { temperature: 0.6 },
+      }),
+    });
+  } catch {
+    throw new Error(`Não consegui falar com o Ollama em ${OLLAMA_URL}. Ele está aberto/rodando?`);
+  }
+  if (!r.ok) {
+    throw new Error(`Ollama respondeu ${r.status}. O modelo '${OLLAMA_MODELO}' já foi baixado? (ollama pull ${OLLAMA_MODELO})`);
+  }
+  const dados = await r.json();
+  return (dados.message?.content || '').trim();
 }
 
 function lerCorpo(req) {
@@ -98,10 +149,26 @@ const servidor = createServer(async (req, res) => {
       return;
     }
 
+    // Imagens (ex.: o leão do Aslam) servidas da pasta assistente/
+    if (req.method === 'GET' && /^\/[\w.-]+\.(png|jpe?g|webp|svg)$/i.test(req.url)) {
+      const nome = req.url.slice(1);
+      const tipos = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', svg: 'image/svg+xml' };
+      const ext = nome.split('.').pop().toLowerCase();
+      try {
+        const img = await readFile(join(aqui, nome));
+        res.writeHead(200, { 'Content-Type': tipos[ext] || 'application/octet-stream' });
+        res.end(img);
+      } catch {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('imagem não encontrada');
+      }
+      return;
+    }
+
     if (req.method === 'POST' && req.url === '/conversar') {
-      if (SEM_CHAVE) {
+      if (!PRONTO) {
         res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ erro: 'Falta ANTHROPIC_API_KEY no arquivo .env do MazyOS.' }));
+        res.end(JSON.stringify({ erro: 'Cérebro não configurado: falta a chave da Anthropic OU o Ollama rodando.' }));
         return;
       }
       const { historico } = JSON.parse((await lerCorpo(req)) || '{}');
@@ -121,12 +188,13 @@ const servidor = createServer(async (req, res) => {
 });
 
 servidor.listen(PORTA, () => {
-  console.log('\n  ✦ Lux Vision — Assistente de voz');
+  console.log('\n  ✦ Aslam — Assistente de voz da Lux Vision 🦁');
   console.log(`  Abra no navegador:  http://localhost:${PORTA}`);
-  console.log(`  Modelo:  ${MODELO}`);
-  if (SEM_CHAVE) {
-    console.log('\n  ⚠  Falta ANTHROPIC_API_KEY no arquivo .env — o assistente vai abrir,');
-    console.log('     mas só responde depois que você adicionar a chave. Veja assistente/README.md.\n');
+  console.log(`  Cérebro:  ${BACKEND === 'ollama' ? 'Ollama (local) · ' + OLLAMA_MODELO : 'Claude · ' + MODELO}`);
+  if (!PRONTO) {
+    console.log('\n  ⚠  Cérebro não pronto: adicione ANTHROPIC_API_KEY no .env, ou rode o Ollama.\n');
+  } else if (BACKEND === 'ollama') {
+    console.log(`  (Precisa do Ollama aberto e do modelo baixado: ollama pull ${OLLAMA_MODELO})\n`);
   } else {
     console.log('');
   }

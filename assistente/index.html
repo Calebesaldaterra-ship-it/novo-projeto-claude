@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Lux Vision — Assistente de voz</title>
+<title>Aslam — Lux Vision</title>
 <style>
   :root {
     --preto: #0a0a0a;
@@ -39,6 +39,26 @@
     text-transform: uppercase;
     color: var(--suave);
     margin-top: 6px;
+  }
+  .nucleo-wrap {
+    width: min(20cm, 92vw); height: min(20cm, 92vw);
+    margin: 0 auto 6px;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nucleo-wrap::after {
+    content: "";
+    position: absolute; inset: -8%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(201,162,75,.16) 0%, rgba(201,162,75,0) 62%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  #nucleo {
+    width: min(20cm, 92vw); height: min(20cm, 92vw);
+    display: block;
+    position: relative;
+    z-index: 1;
   }
   main {
     width: 100%;
@@ -131,18 +151,108 @@
   .opcoes { display: flex; align-items: center; gap: 8px; color: var(--suave); font-size: 13px; }
   .opcoes input { accent-color: var(--dourado); }
   footer { color: #4a463c; font-size: 12px; padding: 14px; }
+
+  /* ===================== HUD estilo Ultron (laboratório de alta tecnologia) ===================== */
+  :root { --vermelho: #ff3b30; --azul: #4db8ff; }
+  body { position: relative; overflow-x: hidden; }
+  /* leve textura de metal escovado no fundo */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: repeating-linear-gradient(90deg, rgba(255,255,255,.014) 0 1px, transparent 1px 3px);
+  }
+  #hud-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  header, main, footer { position: relative; z-index: 2; }
+  .nucleo-wrap { z-index: 2; }
+  .nucleo-wrap::after { display: none; }        /* o anel assume o brilho circular */
+  #anel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 132%; height: 132%; z-index: 0; pointer-events: none;
+  }
+  #nucleo { z-index: 1; }
+
+  .hud-panel {
+    position: fixed; z-index: 2; pointer-events: none; width: 208px; padding: 12px 14px;
+    background: linear-gradient(180deg, rgba(18,17,15,.72), rgba(10,10,10,.5));
+    border: 1px solid rgba(201,162,75,.28); border-radius: 8px;
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+    font-family: "Consolas","Courier New",monospace; font-size: 11px; color: var(--suave);
+    box-shadow: 0 0 24px rgba(0,0,0,.5), inset 0 0 30px rgba(201,162,75,.04);
+  }
+  .hud-panel .titulo {
+    color: var(--dourado); letter-spacing: 2px; font-size: 10px; text-transform: uppercase;
+    margin-bottom: 9px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .hud-panel .titulo::after { content: "●"; color: var(--vermelho); font-size: 8px; animation: piscar 1.6s infinite; }
+  @keyframes piscar { 0%,100% { opacity:.25 } 50% { opacity:1 } }
+  .hud-panel .linha { display: flex; justify-content: space-between; margin: 3px 0; }
+  .hud-panel .val { color: var(--dourado-claro); }
+  .hud-bar { height: 4px; background: rgba(255,255,255,.06); border-radius: 3px; overflow: hidden; margin: 5px 0 8px; }
+  .hud-bar > i { display: block; height: 100%; width: 30%; background: linear-gradient(90deg, var(--dourado), var(--vermelho)); border-radius: 3px; transition: width .55s ease; }
+  #painel-nucleo   { left: 18px;  top: 90px; }
+  #painel-rede     { right: 18px; top: 90px; }
+  #painel-analise  { left: 18px;  bottom: 66px; }
+  #painel-agentes  { right: 18px; bottom: 66px; }
+  .hud-panel .linha.ag { align-items: center; }
+  .hud-panel .pt { width: 6px; height: 6px; border-radius: 50%; background: #4a463c; transition: box-shadow .3s, background .3s; }
+  .hud-panel .pt.on { background: var(--dourado-claro); box-shadow: 0 0 7px var(--dourado); }
+  .hud-panel .pt.alerta { background: var(--vermelho); box-shadow: 0 0 7px var(--vermelho); }
+  @media (max-width: 1180px) { .hud-panel { display: none; } }
 </style>
 </head>
 <body>
+  <canvas id="hud-bg" aria-hidden="true"></canvas>
+
+  <aside class="hud-panel" id="painel-nucleo" aria-hidden="true">
+    <div class="titulo"><span>Núcleo // Aslam</span></div>
+    <div class="linha"><span>estado</span><span class="val" data-k="estado">repouso</span></div>
+    <div class="linha"><span>processamento</span><span class="val" data-k="proc">14%</span></div>
+    <div class="hud-bar"><i data-bar="proc"></i></div>
+    <div class="linha"><span>moléculas</span><span class="val">6.500</span></div>
+    <div class="linha"><span>tempo ativo</span><span class="val" data-k="uptime">00:00</span></div>
+  </aside>
+
+  <aside class="hud-panel" id="painel-rede" aria-hidden="true">
+    <div class="titulo"><span>Rede // Lux Vision</span></div>
+    <div class="linha"><span>satélites</span><span class="val" data-k="sat">12 online</span></div>
+    <div class="linha"><span>drones</span><span class="val" data-k="dron">4 ativos</span></div>
+    <div class="linha"><span>conexões</span><span class="val" data-k="conx">—</span></div>
+    <div class="linha"><span>latência</span><span class="val" data-k="ping">— ms</span></div>
+    <div class="hud-bar"><i data-bar="sinal"></i></div>
+  </aside>
+
+  <aside class="hud-panel" id="painel-analise" aria-hidden="true">
+    <div class="titulo"><span>Análise em tempo real</span></div>
+    <div class="linha"><span>tráfego</span><span class="val" data-k="traf">—</span></div>
+    <div class="hud-bar"><i data-bar="traf"></i></div>
+    <div class="linha"><span>engajamento</span><span class="val" data-k="eng">—</span></div>
+    <div class="hud-bar"><i data-bar="eng"></i></div>
+    <div class="linha"><span>conversão</span><span class="val" data-k="conv">—</span></div>
+    <div class="hud-bar"><i data-bar="conv"></i></div>
+  </aside>
+
+  <aside class="hud-panel" id="painel-agentes" aria-hidden="true">
+    <div class="titulo"><span>Agentes</span></div>
+    <div class="linha ag"><span>estratégico</span><em class="pt" data-ag="0"></em></div>
+    <div class="linha ag"><span>programador</span><em class="pt" data-ag="1"></em></div>
+    <div class="linha ag"><span>marketing</span><em class="pt" data-ag="2"></em></div>
+    <div class="linha ag"><span>financeiro</span><em class="pt" data-ag="3"></em></div>
+    <div class="linha ag"><span>jurídico</span><em class="pt" data-ag="4"></em></div>
+    <div class="linha ag"><span>pesquisa</span><em class="pt" data-ag="5"></em></div>
+  </aside>
+
   <header>
-    <div class="marca">LUX VISION</div>
-    <div class="sub">Assistente de voz</div>
+    <div class="nucleo-wrap">
+      <canvas id="anel" width="620" height="620" aria-hidden="true"></canvas>
+      <canvas id="nucleo" width="460" height="460" aria-label="Aslam, o leão"></canvas>
+    </div>
+    <div class="marca">Aslam</div>
+    <div class="sub">Assistente da Lux Vision</div>
   </header>
 
   <main>
     <div id="conversa">
       <div class="vazio" id="vazio">
-        Toque no microfone e fale.<br>Ou digite ali embaixo, se preferir.
+        Sou o Aslam. 🦁<br>Toque no microfone e fale — ou digite ali embaixo.
       </div>
     </div>
 
@@ -176,6 +286,9 @@
   const historico = []; // [{role:'user'|'assistant', content:'...'}]
   let ocupado = false;
 
+  // avisa o núcleo de partículas do estado atual
+  const setEstado = (s) => { if (window.ASLAM) window.ASLAM.setEstado(s); };
+
   // ---------- Reconhecimento de voz (fala -> texto) ----------
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let rec = null;
@@ -188,7 +301,7 @@
     rec.continuous = false;
 
     let parcial = '';
-    rec.onstart = () => { ouvindo = true; parcial = ''; btnMic.classList.add('ouvindo'); estado.textContent = 'Ouvindo…'; };
+    rec.onstart = () => { ouvindo = true; parcial = ''; btnMic.classList.add('ouvindo'); estado.textContent = 'Ouvindo…'; setEstado('ouvindo'); };
     rec.onresult = (e) => {
       parcial = '';
       let final = '';
@@ -204,7 +317,7 @@
       btnMic.classList.remove('ouvindo');
       estado.textContent = e.error === 'no-speech' ? 'Não ouvi nada. Toque e fale de novo.' : 'Erro no microfone: ' + e.error;
     };
-    rec.onend = () => { ouvindo = false; btnMic.classList.remove('ouvindo'); if (estado.textContent === 'Ouvindo…') estado.textContent = 'Pronto.'; };
+    rec.onend = () => { ouvindo = false; btnMic.classList.remove('ouvindo'); if (estado.textContent === 'Ouvindo…') estado.textContent = 'Pronto.'; if (!ocupado) setEstado('idle'); };
   } else {
     estado.textContent = 'Seu navegador não reconhece voz. Use o Chrome ou Edge — ou digite abaixo.';
     btnMic.disabled = true;
@@ -248,7 +361,7 @@
     if (quem === 'assistant') {
       const q = document.createElement('div');
       q.className = 'quem';
-      q.textContent = 'Lux Vision';
+      q.textContent = 'Aslam';
       div.appendChild(q);
     }
     div.appendChild(document.createTextNode(texto));
@@ -261,6 +374,7 @@
     ocupado = true;
     btnMic.classList.add('pensando');
     estado.textContent = 'Pensando…';
+    setEstado('pensando');
     addBalao(texto, 'user');
     historico.push({ role: 'user', content: texto });
 
@@ -277,14 +391,17 @@
       historico.push({ role: 'assistant', content: resposta });
       addBalao(resposta, 'assistant');
       estado.textContent = 'Falando…';
+      setEstado('falando');
 
       falar(resposta, () => {
         estado.textContent = 'Pronto.';
+        setEstado('idle');
         if (chkContinuo.checked && rec) setTimeout(alternarMic, 300);
       });
     } catch (e) {
       addBalao('⚠ ' + e.message, 'assistant');
       estado.textContent = 'Erro. Veja a mensagem acima.';
+      setEstado('idle');
     } finally {
       ocupado = false;
       btnMic.classList.remove('pensando');
@@ -293,6 +410,319 @@
 
   btnEnviar.addEventListener('click', () => { const t = entrada.value.trim(); if (t) { entrada.value = ''; enviar(t); } });
   entrada.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnEnviar.click(); });
+</script>
+
+<script>
+// ===== Aslam — núcleo de nano-partículas que se formam e reagem à voz =====
+(function () {
+  const canvas = document.getElementById('nucleo');
+  if (!canvas || !canvas.getContext) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const CX = W / 2, CY = H / 2;
+
+  // Paleta dourada por luminância (4 baldes → desenho eficiente)
+  const OURO = [[248, 226, 152], [232, 202, 112], [201, 162, 75], [140, 110, 48]];
+  function baldeDaLum(l) { return l > 175 ? 0 : l > 120 ? 1 : l > 80 ? 2 : 3; }
+
+  let particulas = [];
+  let coesao = 0;          // 0 = nuvem de moléculas solta  |  1 = leão inteiro formado
+  let coesaoAlvo = 1;      // entrada: materializa o leão uma vez
+  let estado = 'formando';
+  let t0 = null;
+
+  const ASLAM = {
+    estado: 'formando',
+    setEstado(s) {
+      estado = s; this.estado = s;
+      // O leão SÓ se junta quando o Aslam vai responder. Nos outros
+      // momentos, as moléculas ficam soltas flutuando no ar.
+      if (s === 'falando') coesaoAlvo = 1.0;        // respondendo → leão magnético, inteiro
+      else if (s === 'pensando') coesaoAlvo = 0.72; // já puxando as moléculas
+      else if (s === 'ouvindo') coesaoAlvo = 0.14;  // te escutando → nuvem agitada
+      else coesaoAlvo = 0.05;                        // repouso → moléculas flutuando soltas
+    },
+  };
+  window.ASLAM = ASLAM;
+
+  const img = new Image();
+  img.onload = function () {
+    const off = document.createElement('canvas');
+    off.width = W; off.height = H;
+    const octx = off.getContext('2d');
+    const m = W * 0.09;                       // margem: o leão não encosta nas bordas
+    octx.drawImage(img, m, m, W - 2 * m, H - 2 * m);
+    const d = octx.getImageData(0, 0, W, H).data;
+
+    const passo = 2;
+    let alvos = [];
+    for (let y = 0; y < H; y += passo) {
+      for (let x = 0; x < W; x += passo) {
+        const i = (y * W + x) * 4;
+        const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
+        if (a < 40) continue;
+        const lum = r * 0.299 + g * 0.587 + b * 0.114;
+        const quente = r - b;                 // dourado tem R bem maior que B
+        if (quente > 28 && lum > 56 && Math.random() < Math.min(1, lum / 185)) {
+          alvos.push({ x, y, lum });
+        }
+      }
+    }
+    // Reduz de forma UNIFORME (não corta o rodapé): pega pontos espalhados
+    // por todo o leão, preservando a cabeça, a juba e o queixo por igual.
+    const MAX = 6500;
+    if (alvos.length > MAX) {
+      const stride = alvos.length / MAX;
+      const uniforme = [];
+      for (let i = 0; i < alvos.length; i += stride) uniforme.push(alvos[Math.floor(i)]);
+      alvos = uniforme;
+    }
+
+    particulas = alvos.map((p, idx) => {
+      const ang = idx * 2.399963;             // espiral áurea (posição inicial, vem de fora)
+      const rad = 150 + (idx % 110);
+      return {
+        x: CX + Math.cos(ang) * rad,
+        y: CY + Math.sin(ang) * rad,
+        tx: p.x + (Math.random() - 0.5) * 3.4, ty: p.y + (Math.random() - 0.5) * 3.4, vx: 0, vy: 0,
+        // "molécula solta": pra onde flutua quando o leão NÃO está formado
+        cloudR: 62 + Math.random() * 150,       // orbita a uma distância do centro
+        cloudAng: Math.random() * 6.2832,       // em volta de todo o círculo
+        cloudSpin: (Math.random() - 0.5) * 0.0007, // gira devagar (uns pra cada lado)
+        balde: baldeDaLum(p.lum),
+        tam: p.lum > 150 ? 2.0 : 1.4,
+        seed: (idx % 628) / 100,
+      };
+    });
+    // ordena por balde de cor → poucas trocas de fillStyle por frame
+    particulas.sort((a, b) => a.balde - b.balde);
+    requestAnimationFrame(loop);
+  };
+  img.src = '/aslam-leao.png';
+
+  function loop(ts) {
+    if (t0 == null) t0 = ts;
+    const t = ts - t0;
+
+    if (estado === 'formando' && t > 2300) ASLAM.setEstado('idle');
+
+    // enquanto responde, o leão "respira" (fica quase 100% formado, com um pulso)
+    let alvo = coesaoAlvo;
+    if (estado === 'falando') alvo = 0.92 + 0.08 * Math.abs(Math.sin(t * 0.006));
+    coesao += (alvo - coesao) * 0.035;          // atração magnética suave
+    const c = coesao;
+    const solto = 1 - c;                          // quanto ainda está "molécula solta"
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+
+    const alpha = (0.42 + 0.5 * c).toFixed(3);    // nuvem discreta → leão brilhante
+    const estilos = OURO.map((cor) => 'rgba(' + cor[0] + ',' + cor[1] + ',' + cor[2] + ',' + alpha + ')');
+    let baldeAtual = -1;
+
+    const k = 0.04 + 0.075 * c;                   // ímã: quanto mais junto, mais forte puxa
+    const damp = 0.85 - 0.10 * c;                 // formado assenta firme; solto segue flutuando
+
+    for (let idx = 0; idx < particulas.length; idx++) {
+      const p = particulas[idx];
+      if (p.balde !== baldeAtual) { baldeAtual = p.balde; ctx.fillStyle = estilos[baldeAtual]; }
+
+      // posição "molécula": orbita solta, girando devagar ao redor do centro
+      const ca = p.cloudAng + t * p.cloudSpin;
+      const dispX = CX + Math.cos(ca) * p.cloudR + Math.cos(t * 0.0009 + p.seed) * 12;
+      const dispY = CY + Math.sin(ca) * p.cloudR + Math.sin(t * 0.0011 + p.seed * 1.4) * 12;
+
+      // meta = mistura entre a nuvem solta e o ponto no leão, conforme a coesão
+      const gx = dispX + (p.tx - dispX) * c;
+      const gy = dispY + (p.ty - dispY) * c;
+
+      p.vx += (gx - p.x) * k; p.vy += (gy - p.y) * k;
+      // vibração browniana só quando está solto (sensação de moléculas no ar)
+      if (solto > 0.02) { p.vx += (Math.random() - 0.5) * solto * 0.6; p.vy += (Math.random() - 0.5) * solto * 0.6; }
+      p.vx *= damp; p.vy *= damp;
+      p.x += p.vx; p.y += p.vy;
+
+      const s = p.tam * (0.75 + 0.55 * c);
+      ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+    }
+    requestAnimationFrame(loop);
+  }
+})();
+</script>
+
+<script>
+// ===== HUD estilo Ultron: laboratório de alta tecnologia em volta do Aslam =====
+(function () {
+  const bg = document.getElementById('hud-bg');
+  const anel = document.getElementById('anel');
+  if (!bg || !anel || !bg.getContext) return;
+  const bc = bg.getContext('2d');
+  const ac = anel.getContext('2d');
+  const AW = anel.width, AH = anel.height, ACX = AW / 2, ACY = AH / 2;
+
+  // "atividade" 0..1 puxada do estado do Aslam (repouso → respondendo)
+  let ativ = 0.15;
+  function alvoAtiv() {
+    const s = (window.ASLAM && window.ASLAM.estado) || 'idle';
+    if (s === 'falando') return 1.0;
+    if (s === 'pensando') return 0.82;
+    if (s === 'ouvindo') return 0.5;
+    return 0.15;
+  }
+
+  // ---------- Fundo full-screen: grid + chuva de código + rede + varredura ----------
+  let W = 0, H = 0, colunas = [], nos = [];
+  const GLIFOS = 'アカサタナ0123456789<>{}[]#$%&*+=/\\|ΛΣΦΨΩ';
+  function resize() {
+    W = bg.width = Math.floor(innerWidth);
+    H = bg.height = Math.floor(innerHeight);
+    colunas = [];
+    for (let x = 0; x < W; x += 40) colunas.push({ x, y: Math.random() * H, v: 0.6 + Math.random() * 1.4 });
+    nos = [];
+    const n = Math.max(18, Math.min(42, Math.floor(W * H / 55000)));
+    for (let i = 0; i < n; i++) nos.push({ x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - 0.5) * 0.25, vy: (Math.random() - 0.5) * 0.25 });
+  }
+  addEventListener('resize', resize); resize();
+
+  function fundo(t) {
+    bc.clearRect(0, 0, W, H);
+    // grid sutil, deslizando de leve
+    bc.strokeStyle = 'rgba(201,162,75,0.035)'; bc.lineWidth = 1;
+    const gap = 62; bc.beginPath();
+    for (let x = (t * 0.008) % gap; x < W; x += gap) { bc.moveTo(x, 0); bc.lineTo(x, H); }
+    for (let y = 0; y < H; y += gap) { bc.moveTo(0, y); bc.lineTo(W, y); }
+    bc.stroke();
+
+    // chuva de código (bilhões de cálculos)
+    bc.font = '13px Consolas, monospace';
+    const tail = 7;
+    for (const c of colunas) {
+      c.y += c.v * (0.8 + ativ * 1.8);
+      if (c.y > H + tail * 16) c.y = -Math.random() * H * 0.4;
+      for (let k = 0; k < tail; k++) {
+        const yy = c.y - k * 16;
+        if (yy < 0 || yy > H) continue;
+        const al = (1 - k / tail) * (0.10 + ativ * 0.16);
+        const vermelho = (Math.floor(c.x + yy) % 17 === 0);
+        bc.fillStyle = vermelho ? 'rgba(255,59,48,' + al + ')' : 'rgba(210,175,95,' + al + ')';
+        bc.fillText(GLIFOS[Math.abs(Math.floor(c.x * 3 + yy * 0.6 + k)) % GLIFOS.length], c.x, yy);
+      }
+    }
+
+    // rede de conexões (sistemas conectados)
+    for (const nd of nos) { nd.x += nd.vx; nd.y += nd.vy; if (nd.x < 0 || nd.x > W) nd.vx *= -1; if (nd.y < 0 || nd.y > H) nd.vy *= -1; }
+    bc.lineWidth = 1;
+    for (let i = 0; i < nos.length; i++) {
+      for (let j = i + 1; j < nos.length; j++) {
+        const dx = nos[i].x - nos[j].x, dy = nos[i].y - nos[j].y, d2 = dx * dx + dy * dy;
+        if (d2 < 22500) {
+          const al = (1 - Math.sqrt(d2) / 150) * (0.06 + ativ * 0.14);
+          bc.strokeStyle = 'rgba(201,162,75,' + al + ')';
+          bc.beginPath(); bc.moveTo(nos[i].x, nos[i].y); bc.lineTo(nos[j].x, nos[j].y); bc.stroke();
+        }
+      }
+    }
+    bc.fillStyle = 'rgba(230,200,120,0.5)';
+    for (const nd of nos) bc.fillRect(nd.x - 1, nd.y - 1, 2, 2);
+
+    // varredura horizontal (scan de laboratório)
+    const sy = ((t * 0.05) % (H + 200)) - 100;
+    const sg = bc.createLinearGradient(0, sy - 60, 0, sy + 60);
+    sg.addColorStop(0, 'rgba(201,162,75,0)');
+    sg.addColorStop(0.5, 'rgba(201,162,75,' + (0.05 + ativ * 0.06) + ')');
+    sg.addColorStop(1, 'rgba(201,162,75,0)');
+    bc.fillStyle = sg; bc.fillRect(0, sy - 60, W, 120);
+  }
+
+  // ---------- Anel de processamento em volta do leão ----------
+  function anelDesenho(t) {
+    const a = ativ;
+    ac.clearRect(0, 0, AW, AH);
+    ac.save(); ac.translate(ACX, ACY);
+
+    // círculo luminoso pulsando (dourado → vermelho quando processa)
+    const pulse = 0.5 + 0.5 * Math.sin(t * 0.004 * (0.6 + a));
+    const glowR = 150 + a * 60 + pulse * 22;
+    const rM = Math.round(201 + (255 - 201) * a), gM = Math.round(162 + (59 - 162) * a), bM = Math.round(75 + (48 - 75) * a);
+    const g = ac.createRadialGradient(0, 0, glowR * 0.25, 0, 0, glowR);
+    g.addColorStop(0, 'rgba(' + rM + ',' + gM + ',' + bM + ',' + (0.10 + 0.16 * a + 0.06 * pulse).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ac.fillStyle = g; ac.beginPath(); ac.arc(0, 0, glowR, 0, 6.2832); ac.fill();
+
+    ac.globalCompositeOperation = 'lighter';
+    // anel externo segmentado girando
+    const seg = 64, R1 = 214; ac.lineWidth = 2;
+    for (let i = 0; i < seg; i++) {
+      const alerta = (i % 4 === 0);
+      ac.strokeStyle = alerta ? 'rgba(255,59,48,' + (0.14 + 0.4 * a) + ')' : 'rgba(201,162,75,' + (0.22 + 0.26 * a) + ')';
+      const a0 = t * 0.0005 + i / seg * 6.2832;
+      ac.beginPath(); ac.arc(0, 0, R1, a0, a0 + (6.2832 / seg) * 0.6); ac.stroke();
+    }
+    // anel interno girando ao contrário
+    ac.strokeStyle = 'rgba(201,162,75,' + (0.18 + 0.3 * a) + ')'; ac.lineWidth = 1;
+    for (let i = 0; i < 40; i++) { const a0 = -t * 0.0008 + i / 40 * 6.2832; ac.beginPath(); ac.arc(0, 0, 178, a0, a0 + 0.06); ac.stroke(); }
+
+    // satélites / drones orbitando
+    for (let i = 0; i < 10; i++) {
+      const ang = t * (0.0006 * (1 + (i % 3))) * (0.5 + a * 1.6) + i * 0.7;
+      const rr = 232 + (i % 3) * 18;
+      const sx = Math.cos(ang) * rr, sy = Math.sin(ang) * rr * 0.92;
+      ac.strokeStyle = 'rgba(230,200,120,.14)'; ac.lineWidth = 1;
+      ac.beginPath(); ac.moveTo(sx, sy); ac.lineTo(Math.cos(ang - 0.22) * rr, Math.sin(ang - 0.22) * rr * 0.92); ac.stroke();
+      ac.fillStyle = (i % 4 === 0) ? 'rgba(255,59,48,.9)' : 'rgba(230,200,120,.9)';
+      ac.beginPath(); ac.arc(sx, sy, 2.2, 0, 6.2832); ac.fill();
+    }
+    ac.restore();
+  }
+
+  let quadro = 0, t0 = null;
+  function laco(ts) {
+    if (t0 == null) t0 = ts;
+    const t = ts - t0;
+    ativ += (alvoAtiv() - ativ) * 0.05;
+    if ((quadro++ & 1) === 0) fundo(t);   // fundo a ~30fps pra sobrar CPU
+    anelDesenho(t);
+    requestAnimationFrame(laco);
+  }
+  requestAnimationFrame(laco);
+
+  // ---------- Painéis flutuantes com leitura "em tempo real" ----------
+  const inicio = Date.now();
+  const el = (k) => document.querySelector('[data-k="' + k + '"]');
+  const bar = (k) => document.querySelector('[data-bar="' + k + '"]');
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const passo = (v, a, b) => Math.max(a, Math.min(b, v + rnd(-6, 6)));
+  let traf = 42, eng = 58, conv = 31, conx = 180;
+  function nomeEstado() {
+    const s = (window.ASLAM && window.ASLAM.estado) || 'idle';
+    return s === 'falando' ? 'respondendo' : s === 'pensando' ? 'processando' : s === 'ouvindo' ? 'ouvindo você' : 'repouso';
+  }
+  function tick() {
+    const set = (k, txt) => { const e = el(k); if (e) e.textContent = txt; };
+    const setBar = (k, v) => { const b = bar(k); if (b) b.style.width = v + '%'; };
+    set('estado', nomeEstado());
+    const proc = Math.round(ativ * 100);
+    set('proc', proc + '%'); setBar('proc', proc);
+    const seg = Math.floor((Date.now() - inicio) / 1000);
+    set('uptime', String(Math.floor(seg / 60)).padStart(2, '0') + ':' + String(seg % 60).padStart(2, '0'));
+    conx = Math.round(passo(conx, 120, 320)); set('conx', String(conx));
+    set('ping', Math.round(rnd(8, 42)) + ' ms'); setBar('sinal', Math.round(rnd(62, 96)));
+    traf = passo(traf, 20, 95); eng = passo(eng, 25, 98); conv = passo(conv, 10, 70);
+    set('traf', Math.round(traf) + '%'); setBar('traf', Math.round(traf));
+    set('eng', Math.round(eng) + '%'); setBar('eng', Math.round(eng));
+    set('conv', Math.round(conv) + '%'); setBar('conv', Math.round(conv));
+    // agentes acendem conforme o estado (equipe de IA trabalhando)
+    const s = (window.ASLAM && window.ASLAM.estado) || 'idle';
+    const ativos = s === 'falando' ? [0, 2] : s === 'pensando' ? [0, 1, 5] : s === 'ouvindo' ? [5] : [];
+    const forte = (s === 'falando' || s === 'pensando');
+    document.querySelectorAll('[data-ag]').forEach((e, i) => {
+      const on = ativos.includes(i);
+      e.classList.toggle('on', on && !forte);
+      e.classList.toggle('alerta', on && forte);
+    });
+  }
+  setInterval(tick, 700); tick();
+})();
 </script>
 </body>
 </html>
