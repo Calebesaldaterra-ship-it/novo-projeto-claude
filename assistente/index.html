@@ -210,6 +210,47 @@
   }
   #mem-toast.mostra { opacity: 1; transform: translateX(-50%) translateY(0); }
   #mem-toast b { color: var(--dourado); }
+
+  /* Indicador de escuta por voz (sempre ligado) — só informa, não é botão */
+  #escuta-status {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    z-index: 7; pointer-events: none; display: flex; align-items: center; gap: 10px;
+    padding: 9px 18px; border-radius: 40px; max-width: 90vw;
+    background: linear-gradient(180deg, rgba(26,23,16,.92), rgba(12,11,9,.86));
+    border: 1px solid rgba(201,162,75,.5); color: var(--suave);
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+    font-size: 14px; letter-spacing: .3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #escuta-status .es-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
+    background: var(--dourado); box-shadow: 0 0 8px var(--dourado); animation: respira 2s ease-in-out infinite; }
+  #escuta-status.ouvindo { border-color: var(--vermelho); color: #ffd9d6; }
+  #escuta-status.ouvindo .es-dot { background: var(--vermelho); box-shadow: 0 0 10px var(--vermelho); animation: respira .7s ease-in-out infinite; }
+  #escuta-status.pensando .es-dot, #escuta-status.falando .es-dot { background: var(--dourado-claro); }
+  @keyframes respira { 0%,100% { opacity:.35 } 50% { opacity:1 } }
+
+  /* Ativação única do microfone (o navegador exige um toque pra liberar) */
+  #ativar-overlay {
+    position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(120% 120% at 50% 30%, rgba(20,17,12,.93), rgba(5,5,5,.97));
+    cursor: pointer; text-align: center; padding: 24px;
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    transition: opacity .45s ease;
+  }
+  #ativar-overlay.oculto { opacity: 0; pointer-events: none; }
+  #ativar-overlay .ov-leao { font-size: 66px; margin-bottom: 8px; }
+  #ativar-overlay .ov-titulo { font-family: Georgia, serif; font-size: 26px; color: var(--dourado); margin-bottom: 12px; letter-spacing: 1px; }
+  #ativar-overlay .ov-sub { color: var(--texto); font-size: 15px; line-height: 1.6; margin: 0 auto 22px; max-width: 430px; }
+  #ativar-overlay .ov-sub b { color: var(--dourado-claro); }
+  #ativar-overlay .ov-btn {
+    display: inline-block; padding: 14px 32px; border-radius: 40px;
+    background: linear-gradient(180deg, #3a3016, #12100c); border: 2px solid var(--dourado);
+    color: var(--dourado-claro); font-size: 17px; font-weight: 600; letter-spacing: .5px;
+    box-shadow: 0 0 26px rgba(201,162,75,.35); animation: ativapulse 1.8s ease-out infinite;
+  }
+  @keyframes ativapulse {
+    0% { box-shadow: 0 0 0 0 rgba(201,162,75,.4); }
+    100% { box-shadow: 0 0 0 20px rgba(201,162,75,0); }
+  }
 </style>
 </head>
 <body>
@@ -266,7 +307,7 @@
   <main>
     <div id="conversa">
       <div class="vazio" id="vazio">
-        Sou o Aslam. 🦁<br>Toque no microfone e fale — ou digite ali embaixo.
+        Sou o Aslam. 🦁<br>Diga “Aslam” e fale o que precisar — ou digite ali embaixo.
       </div>
     </div>
 
@@ -287,6 +328,20 @@
   </main>
 
   <div id="mem-toast" aria-hidden="true"></div>
+
+  <div id="escuta-status" aria-live="polite">
+    <span class="es-dot"></span>
+    <span id="escuta-txt">Ativando escuta…</span>
+  </div>
+
+  <div id="ativar-overlay">
+    <div class="ov-box">
+      <div class="ov-leao">🦁</div>
+      <div class="ov-titulo">Ativar o Aslam por voz</div>
+      <div class="ov-sub">Toque uma vez pra liberar o microfone. Depois é só dizer <b>“Aslam”</b> e falar o que precisar — sem clicar em mais nada.</div>
+      <div class="ov-btn">Toque para ativar</div>
+    </div>
+  </div>
 
   <footer>Lux Vision · MazyOS</footer>
 
@@ -329,48 +384,93 @@
   }
   atualizarMemoria(false);
 
-  // ---------- Reconhecimento de voz (fala -> texto) ----------
+  // ---------- Escuta por voz SEMPRE ligada — ativa dizendo "Aslam" ----------
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  // aceita variações que o reconhecimento costuma confundir com "Aslam"
+  const ACORDA = /\b(aslam|aslan|aslã|azlam|as ?lam|as ?lã|a slam|as lamb|islam|oslam|haslam)\b/i;
+  const statusPill = document.getElementById('escuta-status');
+  const statusTxt = document.getElementById('escuta-txt');
+  const overlay = document.getElementById('ativar-overlay');
+
   let rec = null;
-  let ouvindo = false;
+  let escutaLigada = false;  // usuário já liberou o microfone?
+  let falandoAgora = false;  // Aslam está falando — ignora o próprio eco
+  let armado = false;        // ouviu "Aslam" sem comando; a próxima fala é o comando
+  let armadoTimer = null;
+
+  function pill(cls, texto) {
+    if (statusPill) { statusPill.className = ''; if (cls) statusPill.classList.add(cls); }
+    if (statusTxt && texto != null) statusTxt.textContent = texto;
+  }
+  const semAcordar = (t) => t.replace(ACORDA, ' ').replace(/^[\s,.:;!?…-]+/, '').replace(/\s+/g, ' ').trim();
 
   if (SR) {
     rec = new SR();
     rec.lang = 'pt-BR';
     rec.interimResults = true;
-    rec.continuous = false;
+    rec.continuous = true;
 
-    let parcial = '';
-    rec.onstart = () => { ouvindo = true; parcial = ''; btnMic.classList.add('ouvindo'); estado.textContent = 'Ouvindo…'; setEstado('ouvindo'); };
     rec.onresult = (e) => {
-      parcial = '';
-      let final = '';
-      for (const r of e.results) {
-        if (r.isFinal) final += r[0].transcript;
-        else parcial += r[0].transcript;
+      if (ocupado || falandoAgora) return;  // ignora enquanto pensa/fala (evita eco)
+      let finalTxt = '', interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalTxt += r[0].transcript; else interim += r[0].transcript;
       }
-      estado.textContent = (final || parcial) ? '“' + (final || parcial) + '”' : 'Ouvindo…';
-      if (final.trim()) enviar(final.trim());
+      const parcial = (finalTxt || interim).trim();
+      const mirandoEle = armado || ACORDA.test(parcial);
+      if (parcial) {
+        // mostra AO VIVO tudo que ouve (prova que o microfone funciona)
+        if (mirandoEle) setEstado('ouvindo');
+        pill(mirandoEle ? 'ouvindo' : '', mirandoEle ? '“' + parcial + '”' : 'ouço: ' + parcial);
+      }
+      if (!finalTxt.trim()) return;
+      const texto = finalTxt.trim();
+
+      if (armado) {
+        armado = false; clearTimeout(armadoTimer);
+        enviar(texto);
+      } else if (ACORDA.test(texto)) {
+        const comando = semAcordar(texto);
+        if (comando.length >= 2) {
+          enviar(comando);               // "Aslam, qual minha meta?" → manda "qual minha meta?"
+        } else {
+          armado = true;                 // só disse "Aslam" → espera o comando
+          setEstado('ouvindo');
+          pill('ouvindo', 'Sim? Pode falar…');
+          clearTimeout(armadoTimer);
+          armadoTimer = setTimeout(() => { armado = false; if (!ocupado) { setEstado('idle'); pill('', 'Diga “Aslam”…'); } }, 8000);
+        }
+      } else if (!ocupado) {
+        pill('', 'Diga “Aslam”…');       // fala sem "Aslam": não é pra ele
+      }
     };
-    rec.onerror = (e) => {
-      ouvindo = false;
-      btnMic.classList.remove('ouvindo');
-      estado.textContent = e.error === 'no-speech' ? 'Não ouvi nada. Toque e fale de novo.' : 'Erro no microfone: ' + e.error;
+
+    rec.onerror = (ev) => {
+      if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+        escutaLigada = false;
+        pill('', 'Microfone bloqueado');
+        if (overlay) overlay.classList.remove('oculto');
+      }
+      // 'no-speech' e 'aborted' são normais no modo contínuo; o onend religa
     };
-    rec.onend = () => { ouvindo = false; btnMic.classList.remove('ouvindo'); if (estado.textContent === 'Ouvindo…') estado.textContent = 'Pronto.'; if (!ocupado) setEstado('idle'); };
+
+    rec.onend = () => { if (escutaLigada && !ocupado && !falandoAgora) setTimeout(() => { try { rec.start(); } catch {} }, 300); };
   } else {
-    estado.textContent = 'Seu navegador não reconhece voz. Use o Chrome ou Edge — ou digite abaixo.';
-    btnMic.disabled = true;
-    btnMic.style.opacity = .4;
+    pill('', 'Navegador sem voz. Use Chrome/Edge ou digite abaixo.');
   }
 
-  function alternarMic() {
-    if (ocupado || !rec) return;
-    if (ouvindo) { rec.stop(); return; }
-    speechSynthesis.cancel();
-    try { rec.start(); } catch { /* já iniciando */ }
+  function ligarEscuta() {
+    if (!rec) return;
+    escutaLigada = true;
+    try { rec.start(); pill('', 'Diga “Aslam”…'); } catch { /* já ativo */ }
   }
-  btnMic.addEventListener('click', alternarMic);
+  function religar() { if (escutaLigada && rec && !ocupado && !falandoAgora) { try { rec.start(); } catch {} } }
+
+  // Ativação única: um toque libera o microfone; daí em diante é 100% por voz.
+  if (overlay) overlay.addEventListener('click', () => { overlay.classList.add('oculto'); ligarEscuta(); });
+  // O mic principal (escondido embaixo) vira um reforço manual opcional.
+  if (btnMic) btnMic.addEventListener('click', () => { if (!escutaLigada) ligarEscuta(); armado = true; setEstado('ouvindo'); pill('ouvindo', 'Pode falar…'); });
 
   // ---------- Voz (texto -> fala) ----------
   let vozPt = null;
@@ -412,9 +512,11 @@
   async function enviar(texto) {
     if (ocupado || !texto) return;
     ocupado = true;
-    btnMic.classList.add('pensando');
+    armado = false;
+    try { rec && rec.stop(); } catch {}     // pausa a escuta enquanto processa e fala
     estado.textContent = 'Pensando…';
     setEstado('pensando');
+    pill('pensando', 'Pensando…');
     addBalao(texto, 'user');
     historico.push({ role: 'user', content: texto });
 
@@ -432,11 +534,15 @@
       addBalao(resposta, 'assistant');
       estado.textContent = 'Falando…';
       setEstado('falando');
-
+      pill('falando', 'Falando…');
+      falandoAgora = true;
+      ocupado = false;
       falar(resposta, () => {
+        falandoAgora = false;
         estado.textContent = 'Pronto.';
         setEstado('idle');
-        if (chkContinuo.checked && rec) setTimeout(alternarMic, 300);
+        pill('', 'Diga “Aslam”…');
+        religar();                          // volta a escutar depois de falar
       });
       // dá um tempo pro aprendizado em segundo plano concluir, depois atualiza a memória
       setTimeout(() => atualizarMemoria(true), 4000);
@@ -444,9 +550,10 @@
       addBalao('⚠ ' + e.message, 'assistant');
       estado.textContent = 'Erro. Veja a mensagem acima.';
       setEstado('idle');
-    } finally {
+      falandoAgora = false;
       ocupado = false;
-      btnMic.classList.remove('pensando');
+      pill('', 'Diga “Aslam”…');
+      religar();
     }
   }
 

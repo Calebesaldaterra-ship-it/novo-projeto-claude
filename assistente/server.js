@@ -71,18 +71,38 @@ async function montarSystem() {
     '_memoria/empresa.md',
     '_memoria/preferencias.md',
     '_memoria/estrategia.md',
-    '_memoria/aprendizado.md',
     'identidade/design-guide.md',
   ];
   const partes = [];
   for (const a of arquivos) {
     try {
-      partes.push(`## ${a}\n${await readFile(join(raiz, a), 'utf8')}`);
+      const conteudo = (await readFile(join(raiz, a), 'utf8')).trim();
+      if (conteudo) partes.push(`## ${a}\n${conteudo}`);
     } catch {
       /* arquivo pode não existir ainda */
     }
   }
-  return `${PROMPT_BASE}\n\n# Contexto do negócio (memória do MazyOS)\n\n${partes.join('\n\n')}`;
+
+  // Memória aprendida = fatos que o Aslam JÁ SABE sobre o usuário. Vai por último
+  // e com destaque forte, pra o modelo tratar como conhecimento próprio (não como doc).
+  let aprendido = '';
+  try {
+    const linhas = (await readFile(MEM_APRENDIZADO, 'utf8'))
+      .split('\n')
+      .filter((l) => l.trim().startsWith('- '))
+      .map((l) => l.replace(/^-\s*(\(\d{4}-\d{2}-\d{2}\)\s*)?/, '').trim())
+      .filter(Boolean);
+    if (linhas.length) {
+      aprendido =
+        `\n\n# O QUE VOCÊ JÁ SABE SOBRE O USUÁRIO (fatos reais — use com confiança)\n` +
+        linhas.map((l) => '- ' + l).join('\n') +
+        `\n\nEstes são fatos que você aprendeu com o próprio usuário. Quando ele perguntar algo que está aqui, responda direto com o fato. NUNCA diga que não tem acesso a essas informações — você tem.`;
+    }
+  } catch {
+    /* ainda não aprendeu nada */
+  }
+
+  return `${PROMPT_BASE}\n\n# Contexto do negócio (memória do MazyOS)\n\n${partes.join('\n\n')}${aprendido}`;
 }
 
 async function responder(historico) {
