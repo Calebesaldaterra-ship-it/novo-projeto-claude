@@ -197,6 +197,19 @@
   .hud-panel .pt.on { background: var(--dourado-claro); box-shadow: 0 0 7px var(--dourado); }
   .hud-panel .pt.alerta { background: var(--vermelho); box-shadow: 0 0 7px var(--vermelho); }
   @media (max-width: 1180px) { .hud-panel { display: none; } }
+
+  /* aviso quando o Aslam aprende algo novo */
+  #mem-toast {
+    position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%) translateY(16px);
+    z-index: 6; pointer-events: none; opacity: 0; max-width: 420px;
+    background: linear-gradient(180deg, rgba(22,20,15,.96), rgba(12,11,9,.92));
+    border: 1px solid var(--dourado); border-radius: 12px;
+    padding: 11px 18px; color: var(--texto); font-size: 14px; line-height: 1.4;
+    box-shadow: 0 10px 34px rgba(0,0,0,.6), 0 0 20px rgba(201,162,75,.28);
+    transition: opacity .4s ease, transform .4s ease;
+  }
+  #mem-toast.mostra { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #mem-toast b { color: var(--dourado); }
 </style>
 </head>
 <body>
@@ -208,6 +221,7 @@
     <div class="linha"><span>processamento</span><span class="val" data-k="proc">14%</span></div>
     <div class="hud-bar"><i data-bar="proc"></i></div>
     <div class="linha"><span>moléculas</span><span class="val">6.500</span></div>
+    <div class="linha"><span>memórias</span><span class="val" data-k="mem">0</span></div>
     <div class="linha"><span>tempo ativo</span><span class="val" data-k="uptime">00:00</span></div>
   </aside>
 
@@ -272,6 +286,8 @@
     </div>
   </main>
 
+  <div id="mem-toast" aria-hidden="true"></div>
+
   <footer>Lux Vision · MazyOS</footer>
 
 <script>
@@ -288,6 +304,30 @@
 
   // avisa o núcleo de partículas do estado atual
   const setEstado = (s) => { if (window.ASLAM) window.ASLAM.setEstado(s); };
+
+  // ---------- Memória: o Aslam aprende sozinho ----------
+  let memTotal = -1;
+  async function atualizarMemoria(anunciar) {
+    try {
+      const r = await fetch('/memoria');
+      const d = await r.json();
+      const elMem = document.querySelector('[data-k="mem"]');
+      if (elMem) elMem.textContent = d.total;
+      if (anunciar && memTotal >= 0 && d.total > memTotal && d.ultimas.length) {
+        mostrarMemToast(d.ultimas[d.ultimas.length - 1]);
+      }
+      memTotal = d.total;
+    } catch { /* servidor pode não ter memória ainda */ }
+  }
+  function mostrarMemToast(txt) {
+    const t = document.getElementById('mem-toast');
+    if (!t) return;
+    t.innerHTML = '🧠 <b>Aslam aprendeu:</b> ' + txt;
+    t.classList.add('mostra');
+    clearTimeout(t._tm);
+    t._tm = setTimeout(() => t.classList.remove('mostra'), 5500);
+  }
+  atualizarMemoria(false);
 
   // ---------- Reconhecimento de voz (fala -> texto) ----------
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -398,6 +438,8 @@
         setEstado('idle');
         if (chkContinuo.checked && rec) setTimeout(alternarMic, 300);
       });
+      // dá um tempo pro aprendizado em segundo plano concluir, depois atualiza a memória
+      setTimeout(() => atualizarMemoria(true), 4000);
     } catch (e) {
       addBalao('⚠ ' + e.message, 'assistant');
       estado.textContent = 'Erro. Veja a mensagem acima.';

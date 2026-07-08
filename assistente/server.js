@@ -5,13 +5,16 @@
 // Abrir:  http://localhost:5173
 
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, appendFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
 const raiz = join(aqui, '..');
+
+// Onde o Aslam guarda o que aprende sozinho sobre o usuário e o negócio.
+const MEM_APRENDIZADO = join(raiz, '_memoria', 'aprendizado.md');
 
 // Carrega o .env da raiz do projeto (chaves de API). Node 20.12+ / 24.
 try {
@@ -68,6 +71,7 @@ async function montarSystem() {
     '_memoria/empresa.md',
     '_memoria/preferencias.md',
     '_memoria/estrategia.md',
+    '_memoria/aprendizado.md',
     'identidade/design-guide.md',
   ];
   const partes = [];
@@ -83,16 +87,22 @@ async function montarSystem() {
 
 async function responder(historico) {
   if (!SYSTEM) SYSTEM = await montarSystem();
-  return BACKEND === 'ollama' ? responderOllama(historico) : responderAnthropic(historico);
+  return chamarLLM(SYSTEM, historico);
 }
 
-async function responderAnthropic(historico) {
+// Chama o cérebro (Claude ou Ollama) com um system prompt qualquer.
+function chamarLLM(system, historico, temp) {
+  return BACKEND === 'ollama' ? responderOllama(system, historico, temp) : responderAnthropic(system, historico, temp);
+}
+
+async function responderAnthropic(system, historico, temp) {
   const params = {
     model: MODELO,
     max_tokens: 500,
-    system: SYSTEM,
+    system,
     messages: historico,
   };
+  if (typeof temp === 'number') params.temperature = temp;
   // Voz precisa ser rápida: desliga o "thinking" (não suportado no Fable 5).
   if (!MODELO.includes('fable')) params.thinking = { type: 'disabled' };
 
@@ -104,8 +114,8 @@ async function responderAnthropic(historico) {
     .trim();
 }
 
-async function responderOllama(historico) {
-  const mensagens = [{ role: 'system', content: SYSTEM }, ...historico];
+async function responderOllama(system, historico, temp) {
+  const mensagens = [{ role: 'system', content: system }, ...historico];
   let r;
   try {
     r = await fetch(`${OLLAMA_URL}/api/chat`, {
@@ -115,7 +125,7 @@ async function responderOllama(historico) {
         model: OLLAMA_MODELO,
         messages: mensagens,
         stream: false,
-        options: { temperature: 0.6 },
+        options: { temperature: typeof temp === 'number' ? temp : 0.6 },
       }),
     });
   } catch {
@@ -126,6 +136,86 @@ async function responderOllama(historico) {
   }
   const dados = await r.json();
   return (dados.message?.content || '').trim();
+}
+
+// ---------- Memória de longo prazo: o Aslam aprende sozinho ----------
+const PROMPT_MEMORIA = `Você é o módulo de memória do Aslam — assistente de uma agência digital. Sua função é transformar a conversa em UMA anotação curta pra lembrar depois.
+
+Guarde coisas como: preferências do usuário, clientes, serviços, metas, prazos, hábitos, decisões, nome, empresa.
+
+Formato da resposta: UMA frase curta, em terceira pessoa. Exemplos:
+- Cliente novo: Padaria do João.
+- Prefere respostas curtas.
+- Meta do mês: fechar três clientes.
+
+Se a conversa for só saudação ou papo trivial, responda apenas: NADA
+Nunca invente. Baseie-se só no que o usuário disse.`;
+
+// Palavras que sinalizam claramente algo pra lembrar.
+const GATILHOS = /(anota|anote|lembr|guarda|guarde|n[ãa]o esque|meu cliente|cliente novo|clientes?:|prefiro|prefer[êe]ncia|gosto de|n[ãa]o gosto|minha meta|meta d|objetivo|prazo|importante|sempre que|a partir de agora|meu nome [ée]|me chamo|minha empresa|trabalho com|foco )/i;
+
+function normaliza(s) {
+  return s.toLowerCase().replace(/[^0-9a-zà-ú ]/gi, '').replace(/\s+/g, ' ').trim();
+}
+
+// Limpa o texto num fato curto de memória (ou null se não presta).
+function limpaFato(s) {
+  if (!s) return null;
+  let f = String(s).trim().replace(/^["'\s\-*•]+|["'\s]+$/g, '');
+  // tira prefixos de comando ("Aslam, anota aí:", "lembra que", etc.)
+  f = f.replace(/^(aslam[,:\s]+)?(anota( a[ií])?|anote|lembra( que)?|lembre( que)?|guarda( que)?|guarde( que)?|n[ãa]o esque[çc]a( que)?)[\s:,]+/i, '').trim();
+  if (!f || /^nada\b/i.test(f) || f.length < 5 || f.length > 220) return null;
+  return f.charAt(0).toUpperCase() + f.slice(1);
+}
+
+// Analisa a conversa e, se achar um fato permanente novo, grava na memória.
+async function aprender(historico) {
+  const recente = historico.slice(-6);
+  if (!recente.length) return null;
+  const ultimaUser = [...recente].reverse().find((m) => m.role === 'user');
+  if (!ultimaUser) return null;
+  const fala = ultimaUser.content.trim();
+  const mandouGuardar = /(anota|anote|guarda|guarde|n[ãa]o esque)/i.test(fala);
+  const ehPergunta = /\?\s*$/.test(fala) || /^\s*(voc[eê]|qual|quais|quando|onde|quem|o que|cad[êe]|por que|como)\b/i.test(fala);
+  // Perguntas (inclusive "você lembra...?") não viram memória — a não ser que você mande guardar.
+  if (ehPergunta && !mandouGuardar) return null;
+  const temGatilho = mandouGuardar || (GATILHOS.test(fala) && !ehPergunta);
+  const texto = recente.map((m) => (m.role === 'user' ? 'Usuário' : 'Aslam') + ': ' + m.content).join('\n');
+
+  const instrucao = temGatilho
+    ? 'O usuário quer que você guarde algo. Resuma em UMA frase curta, em terceira pessoa, o fato pra lembrar depois.'
+    : 'Se o usuário revelou um fato permanente (preferência, cliente, meta, prazo, hábito, nome, empresa), resuma em UMA frase curta em terceira pessoa. Se for só conversa ou saudação, responda NADA.';
+
+  let fato = null;
+  try {
+    fato = await chamarLLM(PROMPT_MEMORIA, [{ role: 'user', content: 'Conversa:\n' + texto + '\n\n' + instrucao }], 0.2);
+  } catch { /* cérebro falhou; cai na rede de segurança abaixo */ }
+  fato = limpaFato(fato);
+
+  // rede de segurança: se você pediu claramente e o modelo fraco flopou, guarda sua própria fala
+  if (!fato && temGatilho) fato = limpaFato(ultimaUser.content);
+  if (!fato) return null;
+
+  // não repete algo que já está guardado
+  let existentes = '';
+  try { existentes = await readFile(MEM_APRENDIZADO, 'utf8'); } catch { /* ainda não existe */ }
+  const nf = normaliza(fato);
+  const repetido = existentes.split('\n').some((l) => {
+    const nl = normaliza(l);
+    return nl.length > 3 && (nl.includes(nf) || nf.includes(nl));
+  });
+  if (repetido) return null;
+
+  const data = new Date().toISOString().slice(0, 10);
+  try {
+    if (!existentes) await appendFile(MEM_APRENDIZADO, '# Aprendizado do Aslam\n\nO que o Aslam foi aprendendo sozinho nas conversas:\n\n', 'utf8');
+    await appendFile(MEM_APRENDIZADO, `- (${data}) ${fato}\n`, 'utf8');
+  } catch {
+    return null;
+  }
+  SYSTEM = null; // recarrega o contexto com a nova memória na próxima resposta
+  console.log(`  🧠 memória nova: ${fato}`);
+  return fato;
 }
 
 function lerCorpo(req) {
@@ -176,6 +266,23 @@ const servidor = createServer(async (req, res) => {
       const resposta = await responder(msgs);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ resposta }));
+      // Aprende em segundo plano — não atrasa a resposta ao usuário.
+      aprender([...msgs, { role: 'assistant', content: resposta }]).catch(() => {});
+      return;
+    }
+
+    // Lista o que o Aslam já aprendeu (pra mostrar no painel de memória).
+    if (req.method === 'GET' && req.url === '/memoria') {
+      let linhas = [];
+      try {
+        const txt = await readFile(MEM_APRENDIZADO, 'utf8');
+        linhas = txt.split('\n')
+          .filter((l) => l.trim().startsWith('- '))
+          .map((l) => l.replace(/^-\s*(\(\d{4}-\d{2}-\d{2}\)\s*)?/, '').trim())
+          .filter(Boolean);
+      } catch { /* ainda não aprendeu nada */ }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ total: linhas.length, ultimas: linhas.slice(-5) }));
       return;
     }
 
