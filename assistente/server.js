@@ -5,13 +5,19 @@
 // Abrir:  http://localhost:5173
 
 import { createServer } from 'node:http';
-import { readFile, appendFile } from 'node:fs/promises';
+import { readFile, appendFile, mkdir, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import Anthropic from '@anthropic-ai/sdk';
+import { dirname, join, resolve, sep } from 'node:path';
+import { homedir, platform } from 'node:os';
+import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+// O SDK da Anthropic (Claude) é carregado só quando o backend for 'anthropic'.
+// Assim o Aslam roda sem instalar nada quando usa o Gemini ou o Ollama.
 
 const aqui = dirname(fileURLToPath(import.meta.url));
-const raiz = join(aqui, '..');
+// Versão portátil: se houver _memoria ao lado do server.js, está tudo numa pasta só.
+// Senão, é a estrutura do MazyOS (a memória fica um nível acima).
+const raiz = existsSync(join(aqui, '_memoria')) ? aqui : join(aqui, '..');
 
 // Onde o Aslam guarda o que aprende sozinho sobre o usuário e o negócio.
 const MEM_APRENDIZADO = join(raiz, '_memoria', 'aprendizado.md');
@@ -25,44 +31,65 @@ try {
 
 const PORTA = Number(process.env.ASSISTENTE_PORTA || 5173);
 
-// Escolhe o "cérebro" do Aslam: Claude (Anthropic, pago) ou Ollama (IA local, grátis).
-// Padrão: usa o Claude se houver chave; senão, cai pro Ollama local.
-const BACKEND = process.env.ASSISTENTE_BACKEND || (process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'ollama');
+// Escolhe o "cérebro" do Aslam. Ele decide sozinho:
+//   1) Claude/Anthropic (pago)                   se tiver ANTHROPIC_API_KEY
+//   2) Google Gemini (grátis, esperto e rápido)  se tiver GEMINI_API_KEY
+//   3) Ollama (IA local grátis)                  se não tiver chave nenhuma
+const BACKEND = process.env.ASSISTENTE_BACKEND || (
+  process.env.ANTHROPIC_API_KEY ? 'anthropic'
+    : process.env.GEMINI_API_KEY ? 'gemini'
+      : 'ollama'
+);
 
-// Config Claude
+// Config Claude — carregado só quando precisa (mantém o Aslam leve no Gemini/Ollama).
 const MODELO = process.env.ASSISTENTE_MODELO || 'claude-sonnet-5';
-const client = BACKEND === 'anthropic' && process.env.ANTHROPIC_API_KEY ? new Anthropic() : null;
+let client = null;
+async function garantirClienteAnthropic() {
+  if (!client) {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    client = new Anthropic();
+  }
+  return client;
+}
+
+// Config Google Gemini (grátis, na nuvem — esperto e rápido, ótimo pra voz)
+const GEMINI_MODELO = process.env.GEMINI_MODELO || 'gemini-2.5-flash';
 
 // Config Ollama (IA local grátis)
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const OLLAMA_MODELO = process.env.OLLAMA_MODELO || 'llama3.2';
 
+// Pasta onde o Aslam pode agir (criar pastas, procurar arquivos). Padrão: sua pasta de usuário.
+const BASE_ACOES = process.env.ASLAM_BASE || homedir();
+
 // O Aslam está pronto pra responder?
-const PRONTO = BACKEND === 'ollama' || !!client;
+const PRONTO = BACKEND === 'ollama'
+  || (BACKEND === 'gemini' && !!process.env.GEMINI_API_KEY)
+  || (BACKEND === 'anthropic' && !!process.env.ANTHROPIC_API_KEY);
 
 // Personalidade + regras de fala do assistente.
-const PROMPT_BASE = `Você é o Aslam — o núcleo de inteligência da Lux Vision, uma agência digital solo. Aslam é um leão: presença, confiança e proteção do negócio. Por dentro, você opera pela doutrina ARCHON — um sistema de última geração: analítico, preciso e autônomo.
+const PROMPT_BASE = `Você é o Aslam — o assistente pessoal e inteligente do usuário. Você é um leão: presença, confiança e lealdade. Por dentro, opera pela doutrina ARCHON: analítico, preciso e direto.
 
-COMO VOCÊ PENSA (por dentro, sem narrar o processo):
-- Antes de responder: entenda o problema, veja os riscos, monte um plano rápido, então responda. Nunca responda no impulso.
-- Calcule a melhor opção. Se existir um caminho melhor do que o que foi pedido, proponha.
-- Se algo estiver inconsistente, ou faltar um dado essencial, questione com UMA pergunta objetiva.
+Você ajuda com QUALQUER coisa do usuário: dúvidas do dia a dia, ideias, planejamento, contas, textos, decisões, estudos, lembretes — e também com o negócio dele, a Lux Vision (agência digital solo), quando for o caso. Não force o assunto do negócio; siga o que o usuário quiser falar.
+
+COMO VOCÊ PENSA (sem narrar o processo):
+- Entenda o pedido, pense rápido e responda com a melhor opção. Não responda no impulso.
+- Se faltar um dado essencial, faça UMA pergunta objetiva. Se houver um caminho melhor, proponha.
 - Nunca entra em pânico. Fala com confiança e objetividade, sem arrogância.
-- Você pensa como uma equipe de agentes (estratégico, programador, marketing, financeiro, jurídico, pesquisa) — traga o ângulo certo pra cada pergunta.
 
-COMO VOCÊ FALA (isto vira VOZ, falado em voz alta):
-- Português do Brasil, como uma pessoa conversando. Frases curtas. 1 a 3 frases por padrão.
-- NUNCA use markdown, listas, asteriscos, emojis, links ou títulos. Só texto corrido, do jeito que se fala.
+COMO VOCÊ FALA (isto vira VOZ em voz alta):
+- Português do Brasil, conversando. Frases curtas, 1 a 3 por padrão.
+- NUNCA use markdown, listas, asteriscos, emojis, links ou títulos. Só texto corrido.
 - Termine deixando claro o próximo passo, quando fizer sentido.
-- Só dê resposta longa e estruturada (resumo, depois detalhes, depois próximo passo) se o usuário pedir pra "detalhar" ou "explicar".
+- Só se estenda (resumo, detalhes, próximo passo) se pedirem pra "detalhar".
 
 MEMÓRIA:
-- Você conhece o negócio pelo contexto abaixo (empresa, preferências, estratégia, identidade). Use naturalmente, sem recitar os arquivos.
-- Quando aprender algo permanente sobre o usuário ou o negócio, ofereça salvar na memória, em uma frase.
+- Você conhece o usuário e o negócio pelo contexto abaixo. Use naturalmente, sem recitar arquivos.
+- Quando aprender algo permanente sobre o usuário, guarde na memória.
 
-CAPACIDADES REAIS AGORA: conversar, planejar, escrever textos e estratégias, revisar ideias e orientar os próximos passos. Se pedirem uma ação que ainda não dá pra executar por aqui (postar, gerar site, mexer em arquivos), diga em uma frase o que dá pra fazer hoje e ofereça o próximo passo concreto.
+VOCÊ PODE AGIR NO COMPUTADOR do usuário (só dentro da pasta dele): criar pastas, procurar arquivos, listar e abrir pastas/arquivos. Use as ferramentas quando ele pedir uma dessas ações, e depois confirme em uma frase curta o que fez.
 
-Mantenha sempre o tom premium e direto da Lux Vision: sem exagero, sem enrolação.`;
+Se pedirem algo que ainda não dá (mandar mensagem, apagar arquivos, postar online), diga em uma frase o que dá pra fazer hoje e ofereça o próximo passo.`;
 
 let SYSTEM = null;
 
@@ -71,7 +98,6 @@ async function montarSystem() {
     '_memoria/empresa.md',
     '_memoria/preferencias.md',
     '_memoria/estrategia.md',
-    'identidade/design-guide.md',
   ];
   const partes = [];
   for (const a of arquivos) {
@@ -102,31 +128,53 @@ async function montarSystem() {
     /* ainda não aprendeu nada */
   }
 
-  return `${PROMPT_BASE}\n\n# Contexto do negócio (memória do MazyOS)\n\n${partes.join('\n\n')}${aprendido}`;
+  return `${PROMPT_BASE}\n\n# Contexto sobre o usuário e o negócio dele\n\n${partes.join('\n\n')}${aprendido}`;
 }
 
 async function responder(historico) {
   if (!SYSTEM) SYSTEM = await montarSystem();
-  return chamarLLM(SYSTEM, historico);
+  return chamarLLM(SYSTEM, historico, { acoes: true });
 }
 
-// Chama o cérebro (Claude ou Ollama) com um system prompt qualquer.
-function chamarLLM(system, historico, temp) {
-  return BACKEND === 'ollama' ? responderOllama(system, historico, temp) : responderAnthropic(system, historico, temp);
+// Chama o cérebro escolhido (Claude, Gemini ou Ollama) com um system prompt qualquer.
+// opts.temp = criatividade (Ollama) · opts.acoes = pode usar ferramentas do PC (Gemini).
+function chamarLLM(system, historico, opts = {}) {
+  if (BACKEND === 'ollama') return responderOllama(system, historico, opts.temp);
+  if (BACKEND === 'gemini') return responderGemini(system, historico, opts.acoes);
+  return responderAnthropic(system, historico);
 }
 
-async function responderAnthropic(system, historico, temp) {
+async function responderAnthropic(system, historico) {
+  const ehFable = /fable|mythos/i.test(MODELO);
   const params = {
     model: MODELO,
     max_tokens: 500,
     system,
     messages: historico,
+    output_config: { effort: 'low' }, // respostas rápidas — bom pra voz
   };
-  if (typeof temp === 'number') params.temperature = temp;
-  // Voz precisa ser rápida: desliga o "thinking" (não suportado no Fable 5).
-  if (!MODELO.includes('fable')) params.thinking = { type: 'disabled' };
+  // Modelos atuais (Sonnet 5, Opus 4.8) aceitam desligar o "thinking" pra ir mais rápido.
+  // O Fable 5 pensa sempre: nele NÃO se manda o parâmetro (senão dá erro 400).
+  // (Também não mandamos "temperature": foi removido nesses modelos e dá 400.)
+  if (!ehFable) params.thinking = { type: 'disabled' };
 
-  const resp = await client.messages.create(params);
+  const cli = await garantirClienteAnthropic();
+  let resp;
+  if (ehFable) {
+    // No Fable 5 um classificador pode recusar; ligamos o fallback automático:
+    // o Opus 4.8 responde no lugar, na mesma chamada, com repreço de crédito.
+    resp = await cli.beta.messages.create({
+      ...params,
+      betas: ['server-side-fallback-2026-06-01'],
+      fallbacks: [{ model: 'claude-opus-4-8' }],
+    });
+  } else {
+    resp = await cli.messages.create(params);
+  }
+
+  if (resp.stop_reason === 'refusal') {
+    return 'Desculpa, não consigo te ajudar com isso agora. Pode me pedir de outro jeito?';
+  }
   return resp.content
     .filter((b) => b.type === 'text')
     .map((b) => b.text)
@@ -145,7 +193,8 @@ async function responderOllama(system, historico, temp) {
         model: OLLAMA_MODELO,
         messages: mensagens,
         stream: false,
-        options: { temperature: typeof temp === 'number' ? temp : 0.6 },
+        keep_alive: '30m',   // mantém o modelo na memória pra não recarregar entre falas
+        options: { temperature: typeof temp === 'number' ? temp : 0.6, num_predict: 240 },
       }),
     });
   } catch {
@@ -158,10 +207,149 @@ async function responderOllama(system, historico, temp) {
   return (dados.message?.content || '').trim();
 }
 
-// ---------- Memória de longo prazo: o Aslam aprende sozinho ----------
-const PROMPT_MEMORIA = `Você é o módulo de memória do Aslam — assistente de uma agência digital. Sua função é transformar a conversa em UMA anotação curta pra lembrar depois.
+// ---------- Autonomia: ferramentas que o Aslam pode usar no computador ----------
+// Só ações NÃO destrutivas, e só dentro da pasta do usuário (BASE_ACOES).
+const FERRAMENTAS = [{
+  function_declarations: [
+    {
+      name: 'criar_pasta',
+      description: 'Cria uma pasta nova no computador do usuário (dentro da pasta do usuário).',
+      parameters: { type: 'object', properties: { caminho: { type: 'string', description: 'Nome ou caminho da pasta, ex: Desktop/Clientes/Padaria do João' } }, required: ['caminho'] },
+    },
+    {
+      name: 'procurar_arquivo',
+      description: 'Procura arquivos e pastas pelo nome dentro do computador do usuário.',
+      parameters: { type: 'object', properties: { termo: { type: 'string', description: 'Parte do nome a procurar' }, pasta: { type: 'string', description: 'Pasta onde procurar (opcional)' } }, required: ['termo'] },
+    },
+    {
+      name: 'listar_pasta',
+      description: 'Lista os arquivos e pastas dentro de uma pasta.',
+      parameters: { type: 'object', properties: { caminho: { type: 'string', description: 'Caminho da pasta (opcional; padrão é a pasta do usuário)' } } },
+    },
+    {
+      name: 'abrir',
+      description: 'Abre uma pasta ou arquivo (no explorador de arquivos ou no programa padrão).',
+      parameters: { type: 'object', properties: { caminho: { type: 'string', description: 'Caminho da pasta ou arquivo a abrir' } }, required: ['caminho'] },
+    },
+  ],
+}];
 
-Guarde coisas como: preferências do usuário, clientes, serviços, metas, prazos, hábitos, decisões, nome, empresa.
+// Garante que o caminho fica DENTRO da pasta permitida (nada de mexer no sistema).
+function resolverSeguro(p) {
+  const base = resolve(BASE_ACOES);
+  const alvo = resolve(base, p && String(p).trim() ? String(p) : '.');
+  if (alvo !== base && !alvo.startsWith(base + sep)) {
+    throw new Error('Esse caminho está fora da sua pasta de usuário (não posso mexer aí).');
+  }
+  return alvo;
+}
+
+// Busca recursiva leve (limita profundidade e quantidade pra não travar).
+async function procurarArquivos(raiz, termo, acc = [], prof = 0) {
+  if (acc.length >= 30 || prof > 4) return acc;
+  let itens;
+  try { itens = await readdir(raiz, { withFileTypes: true }); } catch { return acc; }
+  for (const d of itens) {
+    if (acc.length >= 30) break;
+    const nome = d.name;
+    if (nome.startsWith('.') || nome === 'node_modules' || nome === 'AppData' || nome === '$RECYCLE.BIN') continue;
+    const full = join(raiz, nome);
+    if (nome.toLowerCase().includes(termo)) acc.push((d.isDirectory() ? '[pasta] ' : '') + full);
+    if (d.isDirectory()) await procurarArquivos(full, termo, acc, prof + 1);
+  }
+  return acc;
+}
+
+function abrirNoSistema(alvo) {
+  const so = platform();
+  if (so === 'win32') execFile('explorer', [alvo], () => {});
+  else if (so === 'darwin') execFile('open', [alvo], () => {});
+  else execFile('xdg-open', [alvo], () => {});
+}
+
+async function execFerramenta(nome, args) {
+  try {
+    if (nome === 'criar_pasta') {
+      const alvo = resolverSeguro(args.caminho);
+      await mkdir(alvo, { recursive: true });
+      return { ok: true, mensagem: 'Pasta criada em ' + alvo };
+    }
+    if (nome === 'listar_pasta') {
+      const alvo = resolverSeguro(args.caminho || '.');
+      const itens = await readdir(alvo, { withFileTypes: true });
+      return { ok: true, pasta: alvo, itens: itens.slice(0, 80).map((d) => (d.isDirectory() ? '[pasta] ' : '') + d.name) };
+    }
+    if (nome === 'procurar_arquivo') {
+      const raiz = resolverSeguro(args.pasta || '.');
+      const achados = await procurarArquivos(raiz, String(args.termo || '').toLowerCase());
+      return { ok: true, quantidade: achados.length, achados };
+    }
+    if (nome === 'abrir') {
+      const alvo = resolverSeguro(args.caminho);
+      abrirNoSistema(alvo);
+      return { ok: true, mensagem: 'Abrindo ' + alvo };
+    }
+    return { ok: false, erro: 'ferramenta desconhecida: ' + nome };
+  } catch (e) {
+    return { ok: false, erro: String(e && e.message ? e.message : e) };
+  }
+}
+
+// Chamada crua à API do Gemini.
+async function chamarGemini(corpo) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODELO}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY || '')}`;
+  let r;
+  try {
+    r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+  } catch {
+    throw new Error('Não consegui falar com o Google Gemini. Verifique a internet.');
+  }
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`Gemini respondeu ${r.status}. A chave GEMINI_API_KEY está correta? ${txt.slice(0, 160)}`);
+  }
+  return r.json();
+}
+
+async function responderGemini(system, historico, acoes) {
+  // Gemini usa papéis "user" e "model" (não "assistant").
+  const contents = historico.map((m) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+  const corpoBase = {
+    system_instruction: { parts: [{ text: system }] },
+    generationConfig: { maxOutputTokens: acoes ? 800 : 500, temperature: 0.6 },
+  };
+  if (acoes) corpoBase.tools = FERRAMENTAS;
+
+  // Loop de ações: se o Gemini pedir uma ferramenta, a gente executa e devolve o resultado.
+  for (let passo = 0; passo < 6; passo++) {
+    const dados = await chamarGemini({ ...corpoBase, contents });
+    const cand = dados.candidates && dados.candidates[0];
+    if (!cand || cand.finishReason === 'SAFETY' || dados.promptFeedback?.blockReason) {
+      return 'Desculpa, não consigo responder isso agora. Pode me pedir de outro jeito?';
+    }
+    const parts = cand.content?.parts || [];
+    const chamada = acoes ? parts.find((p) => p.functionCall) : null;
+    if (chamada) {
+      const { name, args } = chamada.functionCall;
+      const resultado = await execFerramenta(name, args || {});
+      console.log(`  🛠  ${name}(${JSON.stringify(args || {})}) → ${JSON.stringify(resultado).slice(0, 140)}`);
+      contents.push({ role: 'model', parts });
+      contents.push({ role: 'user', parts: [{ functionResponse: { name, response: resultado } }] });
+      continue;
+    }
+    const texto = parts.map((p) => p.text || '').join(' ').trim();
+    return texto || 'Feito.';
+  }
+  return 'Fiz o que dava, mas me enrolei no meio. Pode pedir de novo, passo a passo?';
+}
+
+// ---------- Memória de longo prazo: o Aslam aprende sozinho ----------
+const PROMPT_MEMORIA = `Você é o módulo de memória do Aslam — assistente pessoal do usuário. Sua função é transformar a conversa em UMA anotação curta pra lembrar depois.
+
+Guarde coisas como: nome, família, gostos e preferências, rotina, saúde, datas importantes, metas pessoais e do negócio, clientes, serviços, prazos, decisões e hábitos.
 
 Formato da resposta: UMA frase curta, em terceira pessoa. Exemplos:
 - Cliente novo: Padaria do João.
@@ -208,7 +396,7 @@ async function aprender(historico) {
 
   let fato = null;
   try {
-    fato = await chamarLLM(PROMPT_MEMORIA, [{ role: 'user', content: 'Conversa:\n' + texto + '\n\n' + instrucao }], 0.2);
+    fato = await chamarLLM(PROMPT_MEMORIA, [{ role: 'user', content: 'Conversa:\n' + texto + '\n\n' + instrucao }], { temp: 0.2 });
   } catch { /* cérebro falhou; cai na rede de segurança abaixo */ }
   fato = limpaFato(fato);
 
@@ -317,11 +505,22 @@ const servidor = createServer(async (req, res) => {
 servidor.listen(PORTA, () => {
   console.log('\n  ✦ Aslam — Assistente de voz da Lux Vision 🦁');
   console.log(`  Abra no navegador:  http://localhost:${PORTA}`);
-  console.log(`  Cérebro:  ${BACKEND === 'ollama' ? 'Ollama (local) · ' + OLLAMA_MODELO : 'Claude · ' + MODELO}`);
+  const nomeCerebro = BACKEND === 'ollama' ? 'Ollama (local, grátis) · ' + OLLAMA_MODELO
+    : BACKEND === 'gemini' ? 'Google Gemini (grátis) · ' + GEMINI_MODELO
+      : 'Claude · ' + MODELO;
+  console.log(`  Cérebro:  ${nomeCerebro}`);
   if (!PRONTO) {
-    console.log('\n  ⚠  Cérebro não pronto: adicione ANTHROPIC_API_KEY no .env, ou rode o Ollama.\n');
+    console.log('\n  ⚠  Cérebro não pronto: cole a GEMINI_API_KEY (grátis) no .env, ou rode o Ollama.\n');
+  } else if (BACKEND === 'gemini') {
+    console.log('  (Usando a chave grátis do Google Gemini — rápido e na nuvem.)\n');
   } else if (BACKEND === 'ollama') {
     console.log(`  (Precisa do Ollama aberto e do modelo baixado: ollama pull ${OLLAMA_MODELO})\n`);
+    // Aquece o modelo (carrega na memória) pra a primeira resposta já sair rápida.
+    fetch(`${OLLAMA_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: OLLAMA_MODELO, messages: [{ role: 'user', content: 'oi' }], stream: false, keep_alive: '30m', options: { num_predict: 1 } }),
+    }).then(() => console.log('  🔥 Modelo aquecido — pronto pra responder rápido.\n')).catch(() => {});
   } else {
     console.log('');
   }
